@@ -1,4 +1,12 @@
+import re
 from .database import load_json, save_json, today_key
+
+_UNSAFE_RE = re.compile(r'[<>{}\[\]]')
+
+
+def _sanitize_name(name):
+    return _UNSAFE_RE.sub("", name).strip()
+
 
 def load_stock():
     data = load_json("stock")
@@ -16,6 +24,11 @@ def get_stock_item(name):
     return get_stock_list().get(name, None)
 
 def set_stock_item(name, price, category=None):
+    name = _sanitize_name(name)
+    if not name:
+        return
+    if category:
+        category = _sanitize_name(category)
     data = load_stock()
     items = data.setdefault("items", {})
     if name in items:

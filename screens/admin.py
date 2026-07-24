@@ -6,6 +6,12 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 
+_MIN_PW_LEN = 6
+
+
+def _sanitize_input(text):
+    return text.strip().replace("<", "").replace(">", "").replace("{", "").replace("}", "").replace("[", "").replace("]", "").strip()
+
 
 class AdminScreen(Screen):
     def __init__(self, **kwargs):
@@ -16,6 +22,14 @@ class AdminScreen(Screen):
         self.app = app
 
     def on_enter(self):
+        from backend.database import session
+        if not session.is_logged_in():
+            self.manager.current = "login"
+            return
+        user = session.get_user()
+        if user["role"] != "admin":
+            self.manager.current = "pos"
+            return
         self.build_ui()
 
     def build_ui(self):
@@ -60,6 +74,20 @@ class AdminScreen(Screen):
         main.add_widget(bottom)
         self.add_widget(main)
 
+    def _log_audit(self, action):
+        from backend.database import load_json, save_json, session
+        from datetime import datetime
+        audit = load_json("audit", {"entries": []})
+        user = session.get_user()
+        audit.setdefault("entries", []).append({
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "user": user["username"] if user else "unknown",
+            "action": action,
+        })
+        if len(audit["entries"]) > 200:
+            audit["entries"] = audit["entries"][-200:]
+        save_json("audit", audit)
+
     def manage_inventory(self, *args):
         from backend.stock import get_stock_list, set_stock_item
 
@@ -103,13 +131,18 @@ class AdminScreen(Screen):
 
     def _do_add_inv(self):
         from backend.stock import set_stock_item
-        name = self._inv_name.text.strip()
+        name = _sanitize_input(self._inv_name.text)
+        if not name:
+            return
         try:
             price = float(self._inv_price.text)
+            if price <= 0:
+                return
         except ValueError:
             return
-        cat = self._inv_cat.text.strip() or "Uncategorized"
+        cat = _sanitize_input(self._inv_cat.text) or "Uncategorized"
         set_stock_item(name, price, cat)
+        self._log_audit(f"Added/updated inventory item: {name}")
         self._inv_name.text = ""
         self._inv_price.text = ""
         self._inv_cat.text = ""
@@ -138,11 +171,15 @@ class AdminScreen(Screen):
         add_box = BoxLayout(spacing=4, size_hint_y=None, height=40)
         self._staff_user = TextInput(hint_text="Username", font_size="12sp", multiline=False)
         self._staff_name = TextInput(hint_text="Name", font_size="12sp", multiline=False)
-        self._staff_pw = TextInput(hint_text="Password", font_size="12sp", multiline=False, password=True)
+        self._staff_pw = TextInput(hint_text="Password (min 6 chars)", font_size="12sp", multiline=False, password=True)
         add_box.add_widget(self._staff_user)
         add_box.add_widget(self._staff_name)
         add_box.add_widget(self._staff_pw)
         content.add_widget(add_box)
+
+        self._staff_error = Label(text="", font_size="11sp", size_hint_y=None, height=20,
+                                  color=(0.91, 0.3, 0.24, 1))
+        content.add_widget(self._staff_error)
 
         add_btn = Button(text="Add Staff", size_hint_y=None, height=36,
                          background_color=(0.15, 0.68, 0.38, 1), color=(1, 1, 1, 1))
@@ -158,17 +195,23 @@ class AdminScreen(Screen):
 
     def _do_add_staff(self):
         from backend.database import load_json, save_json, hash_pw
-        user = self._staff_user.text.strip()
+        user = _sanitize_input(self._staff_user.text)
         pw = self._staff_pw.text
         if not user or not pw:
+            self._staff_error.text = "Username and password required"
+            return
+        if len(pw) < _MIN_PW_LEN:
+            self._staff_error.text = f"Password must be at least {_MIN_PW_LEN} characters"
             return
         data = load_json("staff", {"accounts": {}})
         data.setdefault("accounts", {})[user] = {
             "password_hash": hash_pw(pw),
             "role": "cashier",
-            "display_name": self._staff_name.text.strip() or user,
+            "display_name": _sanitize_input(self._staff_name.text) or user,
         }
         save_json("staff", data)
+        self._log_audit(f"Added staff member: {user}")
+        self._staff_error.text = ""
         self._staff_user.text = ""
         self._staff_name.text = ""
         self._staff_pw.text = ""
@@ -208,9 +251,13 @@ class AdminScreen(Screen):
         popup.open()
 
     def _add_stock_entry(self):
-        name = self._stock_item.text.strip()
+        name = _sanitize_input(self._stock_item.text)
+        if not name:
+            return
         try:
             qty = int(self._stock_qty.text)
+            if qty <= 0:
+                return
         except ValueError:
             return
         row = BoxLayout(size_hint_y=None, height=28)
@@ -232,6 +279,7 @@ class AdminScreen(Screen):
         movements = load_stock_movements()
         movements.setdefault("purchases", {})[dk] = entries
         save_stock_movements(movements)
+        self._log_audit(f"Added stock entries for {dk}: {len(entries)} items")
         self._last_stock_entries = []
 
     def stock_take(self, *args):
@@ -286,6 +334,7 @@ class AdminScreen(Screen):
         movements = load_stock_movements()
         movements.setdefault("closing", {})[dk] = closing
         save_stock_movements(movements)
+        self._log_audit(f"Saved stock take for {dk}")
 
     def edit_prices(self, *args):
         from backend.stock import get_stock_list, set_stock_item
@@ -326,19 +375,35 @@ class AdminScreen(Screen):
 
     def _save_prices(self):
         from backend.stock import set_stock_item
+        count = 0
         for name, field in self._price_fields.items():
             try:
                 new_price = float(field.text)
-                set_stock_item(name, new_price)
+                if new_price > 0:
+                    set_stock_item(name, new_price)
+                    count += 1
             except (ValueError, TypeError):
                 pass
+        self._log_audit(f"Updated {count} item prices")
 
     def reset_data(self, *args):
         content = BoxLayout(orientation="vertical", spacing=10, padding=15)
         content.add_widget(Label(
-            text="This will delete ALL data.\nThis cannot be undone!",
+            text="This will delete ALL data.\nThis cannot be undone!\nEnter admin password to confirm:",
             font_size="14sp", halign="center",
         ))
+        self._reset_pw = TextInput(
+            hint_text="Admin password",
+            password=True,
+            size_hint_y=None, height=40,
+            multiline=False, font_size="14sp",
+        )
+        content.add_widget(self._reset_pw)
+        self._reset_error = Label(
+            text="", font_size="11sp", size_hint_y=None, height=20,
+            color=(0.91, 0.3, 0.24, 1),
+        )
+        content.add_widget(self._reset_error)
         btn_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
         cancel_btn = Button(text="Cancel", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1))
         reset_btn = Button(text="RESET", background_color=(0.91, 0.3, 0.24, 1), color=(1, 1, 1, 1))
@@ -346,10 +411,25 @@ class AdminScreen(Screen):
         btn_box.add_widget(reset_btn)
         content.add_widget(btn_box)
 
-        popup = Popup(title="Reset All Data?", content=content, size_hint=(0.8, 0.4), auto_dismiss=False)
+        popup = Popup(title="Reset All Data?", content=content, size_hint=(0.85, 0.55), auto_dismiss=False)
         cancel_btn.bind(on_release=popup.dismiss)
-        reset_btn.bind(on_release=lambda x: (popup.dismiss(), self._do_reset()))
+        reset_btn.bind(on_release=lambda x: self._verify_and_reset(popup))
         popup.open()
+
+    def _verify_and_reset(self, popup):
+        from backend.database import load_json, verify_pw, session
+        pw = self._reset_pw.text
+        user = session.get_user()
+        if not user:
+            return
+        staff = load_json("staff", {"accounts": {}}).get("accounts", {})
+        acc = staff.get(user["username"])
+        if not acc or not verify_pw(pw, acc.get("password_hash", "")):
+            self._reset_error.text = "Incorrect password"
+            return
+        popup.dismiss()
+        self._log_audit("RESET ALL DATA")
+        self._do_reset()
 
     def _do_reset(self):
         from backend.database import save_json, hash_pw, DATA_DIR
@@ -361,11 +441,12 @@ class AdminScreen(Screen):
         save_json("staff", {
             "accounts": {
                 "admin": {
-                    "password_hash": hash_pw("admin123"),
+                    "password_hash": hash_pw("CHANGE_ME_NOW"),
                     "role": "admin",
                     "display_name": "Administrator",
                 }
             }
         })
+        save_json("audit", {"entries": []})
         init_stock()
         self.build_ui()

@@ -1,6 +1,7 @@
+import re
+
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
@@ -58,7 +59,6 @@ class ItemView(RecycleDataViewBehavior, BoxLayout):
 
     def refresh_view_attrs(self, rv, index, data):
         self.index = index
-        self._icon_label.text = data.get("icon", "")
         self._name_label.text = data.get("name", "")
         self._price_label.text = data.get("price_text", "")
         cat = data.get("category", "Other")
@@ -119,9 +119,18 @@ class POSScreen(Screen):
     def on_enter(self):
         if not self.ids:
             self.build_ui()
+        self._touch_session()
         self.refresh_items()
         self.refresh_cart()
         self.update_header()
+
+    def _touch_session(self):
+        from backend.database import session
+        if not session.is_logged_in():
+            self.manager.current = "login"
+            return
+        self.app.current_user = session.get_user()
+        session.touch()
 
     def build_ui(self):
         self.clear_widgets()
@@ -364,6 +373,7 @@ class POSScreen(Screen):
     def add_item(self, name):
         if not self.app:
             return
+        self._touch_session()
         from backend.stock import get_effective_price
         info = self.all_items.get(name)
         if not info:
@@ -378,6 +388,7 @@ class POSScreen(Screen):
         self.refresh_cart()
 
     def cart_plus(self, name):
+        self._touch_session()
         for i, (n, q, p) in enumerate(self.cart):
             if n == name:
                 self.cart[i] = (n, q + 1, p)
@@ -385,6 +396,7 @@ class POSScreen(Screen):
                 return
 
     def cart_minus(self, name):
+        self._touch_session()
         for i, (n, q, p) in enumerate(self.cart):
             if n == name:
                 if q > 1:
@@ -395,6 +407,7 @@ class POSScreen(Screen):
                 return
 
     def clear_cart(self):
+        self._touch_session()
         if self.cart:
             self.cart.clear()
             self.refresh_cart()
@@ -410,6 +423,7 @@ class POSScreen(Screen):
         self.cart_count_label.text = str(sum(q for _, q, _ in self.cart))
 
     def checkout(self, *args):
+        self._touch_session()
         if not self.cart:
             return
         total = sum(q * p for _, q, p in self.cart)
@@ -489,7 +503,7 @@ class POSScreen(Screen):
             if not cust:
                 return
 
-        from backend.database import today_key
+        from backend.database import today_key, session
         from backend.sales import record_sale
         from datetime import datetime
 
@@ -502,7 +516,7 @@ class POSScreen(Screen):
             "items": items_sold,
             "total": total,
             "payment_method": method,
-            "cashier": self.app.current_user["display_name"],
+            "cashier": session.get_user()["display_name"],
         }
         if method == "cash":
             txn["cash_received"] = amt
@@ -517,16 +531,34 @@ class POSScreen(Screen):
         self.cart.clear()
         self.refresh_cart()
         self.refresh_items()
+        session.touch()
 
     def undo_sale(self):
-        from backend.database import today_key
-        from backend.sales import load_sales
+        from backend.database import today_key, session
+        user = session.get_user()
+        if not user:
+            return
         dk = today_key()
+        from backend.sales import load_sales
         sales = load_sales(dk)
         txns = sales.get("transactions", [])
         if not txns:
             return
         last = txns[-1]
+
+        if last.get("cashier") != user["display_name"] and user["role"] != "admin":
+            content = BoxLayout(orientation="vertical", spacing=10, padding=15)
+            content.add_widget(Label(
+                text="Only admin can undo\nanother cashier's sale.",
+                font_size="14sp", halign="center",
+            ))
+            popup = Popup(title="Access Denied", content=content, size_hint=(0.8, 0.4), auto_dismiss=False)
+            ok_btn = Button(text="OK", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1),
+                            size_hint_y=None, height=40)
+            ok_btn.bind(on_release=popup.dismiss)
+            content.add_widget(ok_btn)
+            popup.open()
+            return
 
         content = BoxLayout(orientation="vertical", spacing=10, padding=15)
         items_str = ", ".join(f"{n}x{q}" for n, q in last.get("items", {}).items())
@@ -556,11 +588,16 @@ class POSScreen(Screen):
         self.refresh_items()
 
     def show_report(self, *args):
+        self._touch_session()
         self.manager.current = "report"
 
     def show_debts(self, *args):
+        self._touch_session()
         self.manager.current = "debts"
 
     def show_admin(self, *args):
-        if self.app and self.app.current_user and self.app.current_user["role"] == "admin":
+        self._touch_session()
+        from backend.database import session
+        user = session.get_user()
+        if user and user["role"] == "admin":
             self.manager.current = "admin"

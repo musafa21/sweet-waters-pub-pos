@@ -17,7 +17,12 @@ class ReportScreen(Screen):
         self.app = app
 
     def on_enter(self):
-        from backend.database import today_key
+        from backend.database import today_key, session
+        if not session.is_logged_in():
+            self.manager.current = "login"
+            return
+        session.touch()
+        self.app.current_user = session.get_user()
         if not self.date_key:
             self.date_key = today_key()
         self.build_ui()
@@ -101,6 +106,8 @@ class ReportScreen(Screen):
         self.show_tab("Sales")
 
     def show_tab(self, tab_name):
+        from backend.database import session
+        session.touch()
         self._tab_content.clear_widgets()
         from backend.sales import load_sales
         from backend.stock import get_effective_price, calc_remaining_stock, get_stock_list
@@ -166,14 +173,20 @@ class ReportScreen(Screen):
         self.build_ui()
 
     def undo_sale(self):
-        from backend.database import today_key
-        from backend.sales import load_sales
+        from backend.database import today_key, session
+        if not session.is_logged_in():
+            return
         dk = today_key()
+        from backend.sales import load_sales, undo_last_sale
         sales = load_sales(dk)
         txns = sales.get("transactions", [])
         if not txns:
             return
-        from backend.sales import undo_last_sale
+        last = txns[-1]
+        user = session.get_user()
+        if last.get("cashier") != user["display_name"] and user["role"] != "admin":
+            return
         undo_last_sale(dk)
+        session.touch()
         self.date_key = dk
         self.build_ui()

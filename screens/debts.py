@@ -16,6 +16,12 @@ class DebtScreen(Screen):
         self.app = app
 
     def on_enter(self):
+        from backend.database import session
+        if not session.is_logged_in():
+            self.manager.current = "login"
+            return
+        session.touch()
+        self.app.current_user = session.get_user()
         self.build_ui()
 
     def build_ui(self):
@@ -127,6 +133,7 @@ class DebtScreen(Screen):
         self.add_widget(main)
 
     def settle_debt(self, debt):
+        from backend.database import session
         from backend.debts import calc_debt_outstanding
         balance = calc_debt_outstanding(debt)
 
@@ -182,7 +189,9 @@ class DebtScreen(Screen):
             return
         if amt <= 0:
             return
+        from backend.database import session
         from backend.debts import settle_debt as do_settle
         do_settle(debt.get("id"), debt["_date_key"], amt, self._settle_method)
+        session.touch()
         popup.dismiss()
         self.build_ui()

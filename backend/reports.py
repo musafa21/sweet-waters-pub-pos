@@ -5,7 +5,20 @@ from .stock import get_effective_price, get_stock_list
 from .sales import load_sales, get_payment_summary
 from .debts import calc_debt_outstanding
 
+ALLOWED_EXPORT_DIR = None
+
+
+def _validate_export_path(path):
+    abs_path = os.path.abspath(path)
+    export_dir = ALLOWED_EXPORT_DIR or os.path.abspath(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
+    if not abs_path.startswith(export_dir):
+        raise ValueError("Export path outside allowed directory")
+    return abs_path
+
+
 def export_csv(date_key, path):
+    path = _validate_export_path(path)
     sales = load_sales(date_key)
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
@@ -37,6 +50,7 @@ def export_csv(date_key, path):
     return path
 
 def export_pdf(date_key, path):
+    path = _validate_export_path(path)
     try:
         from fpdf import FPDF
     except ImportError:

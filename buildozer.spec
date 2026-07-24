@@ -6,14 +6,14 @@ package.domain = com.sweetwaterspub
 source.dir = .
 source.include_exts = py,png,jpg,kv,json,ttf,txt
 
-version = 1.0.0
+version = 2.0.0
 
 requirements = python3,kivy,fpdf2
 
 orientation = portrait
 fullscreen = 0
 
-android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
+android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 
 android.api = 33
 android.minapi = 24
@@ -25,7 +25,7 @@ p4a.bootstrap = sdl2
 
 android.arch = arm64-v8a
 
-log_level = 2
+log_level = 0
 
 presplash_color = #16213e
 
