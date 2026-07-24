@@ -134,7 +134,7 @@ class POSScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        main = BoxLayout(orientation="vertical")
+        main = BoxLayout(orientation="vertical", size_hint=(1, 1))
 
         top_bar = BoxLayout(
             size_hint_y=None, height=48,

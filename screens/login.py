@@ -31,7 +31,7 @@ class LoginScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        root = BoxLayout(orientation="vertical", padding=40, spacing=20)
+        root = BoxLayout(orientation="vertical", padding=40, spacing=20, size_hint=(1, 1))
 
         with root.canvas.before:
             Color(0.17, 0.24, 0.31, 1)

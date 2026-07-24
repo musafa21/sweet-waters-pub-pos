@@ -34,7 +34,7 @@ class AdminScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        main = BoxLayout(orientation="vertical", padding=8, spacing=8)
+        main = BoxLayout(orientation="vertical", padding=8, spacing=8, size_hint=(1, 1))
 
         header = BoxLayout(size_hint_y=None, height=48, padding=[10, 0, 10, 0])
         with header.canvas.before:

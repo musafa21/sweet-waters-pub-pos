@@ -17,7 +17,8 @@ from screens.report import ReportScreen
 from screens.debts import DebtScreen
 from screens.admin import AdminScreen
 
-Window.size = (400, 700)
+if platform != "android":
+    Window.size = (400, 700)
 
 
 class SweetWatersPubApp(App):

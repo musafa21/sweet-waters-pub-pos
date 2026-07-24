@@ -11,7 +11,7 @@ version = 2.0.0
 requirements = python3,kivy,fpdf2
 
 orientation = portrait
-fullscreen = 0
+fullscreen = 1
 
 android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 
