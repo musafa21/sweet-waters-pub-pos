@@ -17,6 +17,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
           df -h
 
       - name: Set up Python 3.11
@@ -32,8 +33,18 @@ jobs:
             pkg-config build-essential libssl-dev zlib1g-dev \
             libbz2-dev libreadline-dev libsqlite3-dev curl \
             libncursesw5-dev xz-utils tk-dev libxml2-dev \
-            libxmlsec1-dev libffi-dev liblzma-dev \
-            libncurses5-dev
+            libxmlsec1-dev libffi-dev liblzma-dev
+
+      - name: Set JAVA_HOME
+        run: echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+
+      - name: Cache Buildozer global
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
 
       - name: Install Buildozer
         run: |
@@ -43,8 +54,9 @@ jobs:
 
       - name: Build APK
         run: |
-          yes | buildozer android debug 2>&1 || true
-          ls -la bin/
+          buildozer android debug 2>&1
+          echo "--- APK output ---"
+          ls -la bin/ || echo "No bin/ directory"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

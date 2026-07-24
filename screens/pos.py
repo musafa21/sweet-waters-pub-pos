@@ -1,25 +1,117 @@
-from kivymd.uix.screen import MDScreen
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.gridlayout import MDGridLayout
-from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.button import MDRaisedButton, MDFlatButton
-from kivymd.uix.card import MDCard
-from kivymd.uix.scrollview import MDScrollView
-from kivymd.uix.list import MDList, OneLineListItem, TwoLineListItem
-from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.menu import MDDropdownMenu
-from kivy.core.window import Window
+from kivy.uix.screenmanager import Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.popup import Popup
+from kivy.uix.recycleview import RecycleView
+from kivy.uix.recycleview.views import RecycleDataViewBehavior
+from kivy.uix.recycleboxlayout import RecycleBoxLayout
 from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle
+
+CATEGORY_ICONS = {
+    "Beers & Lagers": "\U0001f37a",
+    "Rum & Spirits": "\U0001f378",
+    "Whiskey": "\U0001f943",
+    "Gin": "\U0001f377",
+    "Vodka": "\U0001f379",
+    "Wines": "\U0001f377",
+    "Water & Soft Drinks": "\U0001f9c4",
+    "Other": "\U0001f37d\ufe0f",
+}
 
 
-class POSScreen(MDScreen):
+class ItemView(RecycleDataViewBehavior, BoxLayout):
+    index = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "vertical"
+        self.padding = [4, 6, 4, 6]
+        self.spacing = 2
+        self._icon_label = Label(
+            font_size="24sp", size_hint_y=None, height=30, color=(1, 1, 1, 1),
+        )
+        self._name_label = Label(
+            font_size="11sp", size_hint_y=None, height=16,
+            color=(1, 1, 1, 1), text_size=(None, None),
+            halign="center", shorten=True, shorten_from="right",
+        )
+        self._price_label = Label(
+            font_size="12sp", size_hint_y=None, height=16,
+            color=(0.91, 0.3, 0.24, 1),
+        )
+        self.add_widget(self._icon_label)
+        self.add_widget(self._name_label)
+        self.add_widget(self._price_label)
+        with self.canvas.before:
+            Color(0.08, 0.13, 0.24, 1)
+            self._bg = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
+    def _update_bg(self, *args):
+        self._bg.pos = self.pos
+        self._bg.size = self.size
+
+    def refresh_view_attrs(self, rv, index, data):
+        self.index = index
+        self._icon_label.text = data.get("icon", "")
+        self._name_label.text = data.get("name", "")
+        self._price_label.text = data.get("price_text", "")
+        cat = data.get("category", "Other")
+        icon = CATEGORY_ICONS.get(cat, CATEGORY_ICONS["Other"])
+        self._icon_label.text = icon
+
+
+class CartItemView(RecycleDataViewBehavior, BoxLayout):
+    index = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = "horizontal"
+        self.padding = [8, 4, 8, 4]
+        self.spacing = 8
+        self._info = Label(
+            text="", font_size="13sp", halign="left", valign="center",
+            size_hint_x=0.5, color=(1, 1, 1, 1),
+        )
+        self._info.bind(size=self._info.setter("text_size"))
+        self._qty_label = Label(
+            text="", font_size="14sp", size_hint_x=0.15, color=(1, 1, 1, 1),
+        )
+        self._minus_btn = Button(text="-", size_hint_x=0.12, font_size="16sp",
+                                 background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1))
+        self._plus_btn = Button(text="+", size_hint_x=0.12, font_size="16sp",
+                                background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1))
+        self.add_widget(self._info)
+        self.add_widget(self._minus_btn)
+        self.add_widget(self._qty_label)
+        self.add_widget(self._plus_btn)
+
+    def refresh_view_attrs(self, rv, index, data):
+        self.index = index
+        name = data.get("name", "")
+        qty = data.get("qty", 1)
+        price = data.get("price", 0)
+        self._info.text = f"{name}\nKES {price:,.0f}"
+        self._qty_label.text = str(qty)
+        self._minus_btn.bind(on_release=lambda x: rv.parent_app.cart_minus(name))
+        self._plus_btn.bind(on_release=lambda x: rv.parent_app.cart_plus(name))
+
+
+class POSScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.app = None
         self.cart = []
+        self.all_items = {}
+        self.categories = {}
         self.current_category = ""
         self.category_buttons = []
+        self.search_text = ""
 
     def set_app(self, app):
         self.app = app
@@ -27,159 +119,162 @@ class POSScreen(MDScreen):
     def on_enter(self):
         if not self.ids:
             self.build_ui()
-        else:
-            self.refresh_items()
-            self.update_header()
+        self.refresh_items()
+        self.refresh_cart()
+        self.update_header()
 
     def build_ui(self):
         self.clear_widgets()
-        main_layout = MDBoxLayout(orientation="vertical")
+        main = BoxLayout(orientation="vertical")
 
-        top_bar = MDBoxLayout(
-            size_hint_y=None,
-            height=56,
-            md_bg_color=[0.17, 0.24, 0.31, 1],
-            padding=[10, 0, 10, 0],
-            spacing=10,
+        top_bar = BoxLayout(
+            size_hint_y=None, height=48,
+            padding=[10, 0, 10, 0], spacing=8,
         )
-        top_bar.add_widget(MDLabel(
+        with top_bar.canvas.before:
+            Color(0.1, 0.13, 0.24, 1)
+            self._top_bg = Rectangle(pos=top_bar.pos, size=top_bar.size)
+        top_bar.bind(pos=self._update_top_bg, size=self._update_top_bg)
+
+        top_bar.add_widget(Label(
             text="SWEET WATERS PUB",
-            font_style="H6",
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
-            size_hint_x=0.3,
+            font_size="16sp", size_hint_x=0.35,
+            color=(1, 1, 1, 1),
         ))
-        self.user_label = MDLabel(
-            text="",
-            font_style="Caption",
-            theme_text_color="Custom",
-            text_color=[0.95, 0.77, 0.06, 1],
-            size_hint_x=0.3,
-            halign="center",
+        self.user_label = Label(
+            text="", font_size="11sp", size_hint_x=0.25,
+            color=(0.95, 0.77, 0.06, 1), halign="center",
         )
         top_bar.add_widget(self.user_label)
 
-        btn_box = MDBoxLayout(spacing=5, size_hint_x=0.4)
+        btn_box = BoxLayout(spacing=4, size_hint_x=0.4)
         for text, action, color in [
-            ("Report", self.show_report, [0.16, 0.5, 0.73, 1]),
-            ("Debts", self.show_debts, [0.91, 0.3, 0.24, 1]),
-            ("Admin", self.show_admin, [0.59, 0.65, 0.65, 1]),
+            ("Report", self.show_report, (0.16, 0.5, 0.73, 1)),
+            ("Debts", self.show_debts, (0.91, 0.3, 0.24, 1)),
+            ("Admin", self.show_admin, (0.59, 0.65, 0.65, 1)),
         ]:
-            btn = MDFlatButton(
-                text=text,
-                on_release=action,
-                theme_text_color="Custom",
-                text_color=[1, 1, 1, 1],
+            btn = Button(
+                text=text, font_size="11sp",
+                background_color=color, color=(1, 1, 1, 1),
+                size_hint_x=0.33,
             )
+            btn.bind(on_release=action)
             btn_box.add_widget(btn)
         top_bar.add_widget(btn_box)
-        main_layout.add_widget(top_bar)
+        main.add_widget(top_bar)
 
-        content = MDBoxLayout(spacing=5, padding=5)
+        content = BoxLayout(spacing=4, padding=4)
 
-        left = MDBoxLayout(orientation="vertical", size_hint_x=0.6)
+        left = BoxLayout(orientation="vertical", size_hint_x=0.6)
 
-        self.search_field = MDTextField(
+        self.search_field = TextInput(
             hint_text="Search items...",
-            icon_left="magnify",
-            size_hint_y=None,
-            height=45,
+            size_hint_y=None, height=40,
+            multiline=False, font_size="14sp",
         )
         self.search_field.bind(text=self.on_search)
         left.add_widget(self.search_field)
 
-        self.cat_box = MDBoxLayout(
-            size_hint_y=None,
-            height=40,
-            spacing=5,
-            padding=[0, 5, 0, 5],
+        self.cat_scroll = ScrollView(
+            size_hint_y=None, height=36,
+            do_scroll_x=True, do_scroll_y=False,
         )
-        left.add_widget(self.cat_box)
+        self.cat_box = BoxLayout(
+            size_hint_y=None, height=34, spacing=4,
+            size_hint_x=None,
+        )
+        self.cat_box.bind(minimum_width=self.cat_box.setter("width"))
+        self.cat_scroll.add_widget(self.cat_box)
+        left.add_widget(self.cat_scroll)
 
-        self.items_scroll = MDScrollView()
-        self.items_grid = MDGridLayout(
-            cols=3,
-            spacing=8,
-            padding=8,
-            size_hint_y=None,
+        self.items_rv = RecycleView(
+            viewclass=ItemView,
+            size_hint_y=1,
         )
-        self.items_grid.bind(minimum_height=self.items_grid.setter("height"))
-        self.items_scroll.add_widget(self.items_grid)
-        left.add_widget(self.items_scroll)
+        self.items_rv.parent_app = self
+        self.items_rv.layout_manager = RecycleBoxLayout(
+            default_size_hint=(None, None),
+            default_size=(100, 80),
+            orientation="vertical",
+            cols=3,
+            spacing=6,
+            padding=6,
+        )
+        self.items_rv.layout_manager.bind(minimum_height=self.items_rv.layout_manager.setter("height"))
+        left.add_widget(self.items_rv)
 
         content.add_widget(left)
 
-        right = MDBoxLayout(orientation="vertical", size_hint_x=0.4)
+        right = BoxLayout(orientation="vertical", size_hint_x=0.4)
+        with right.canvas.before:
+            Color(0.1, 0.13, 0.24, 1)
+            self._right_bg = Rectangle(pos=right.pos, size=right.size)
+        right.bind(pos=self._update_right_bg, size=self._update_right_bg)
 
-        cart_header = MDLabel(
-            text="CART",
-            font_style="H6",
-            halign="center",
-            size_hint_y=None,
-            height=40,
-            md_bg_color=[0.17, 0.24, 0.31, 1],
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
+        cart_header = BoxLayout(size_hint_y=None, height=36, padding=[8, 0])
+        cart_header.add_widget(Label(
+            text="CART", font_size="14sp", color=(1, 1, 1, 1),
+        ))
+        self.cart_count_label = Label(
+            text="0", font_size="11sp", color=(0.91, 0.3, 0.24, 1),
         )
+        cart_header.add_widget(self.cart_count_label)
+        clear_btn = Button(text="Clear", size_hint_x=0.3, font_size="10sp",
+                           background_color=(0.91, 0.3, 0.24, 1), color=(1, 1, 1, 1))
+        clear_btn.bind(on_release=lambda x: self.clear_cart())
+        cart_header.add_widget(clear_btn)
         right.add_widget(cart_header)
 
-        self.cart_list = MDList()
-        cart_scroll = MDScrollView()
-        cart_scroll.add_widget(self.cart_list)
-        right.add_widget(cart_scroll)
-
-        cart_btns = MDBoxLayout(
-            size_hint_y=None,
-            height=40,
-            spacing=5,
-            padding=5,
+        self.cart_rv = RecycleView(
+            viewclass=CartItemView,
+            size_hint_y=1,
         )
-        cart_btns.add_widget(MDFlatButton(
-            text="-1",
-            on_release=self.decrement_selected,
-            md_bg_color=[0.9, 0.49, 0.13, 1],
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
-        ))
-        cart_btns.add_widget(MDFlatButton(
-            text="Remove",
-            on_release=self.remove_selected,
-            md_bg_color=[0.91, 0.3, 0.24, 1],
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
-        ))
-        cart_btns.add_widget(MDFlatButton(
-            text="Clear",
-            on_release=self.clear_cart,
-            md_bg_color=[0.59, 0.65, 0.65, 1],
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
-        ))
-        right.add_widget(cart_btns)
+        self.cart_rv.parent_app = self
+        self.cart_rv.layout_manager = RecycleBoxLayout(
+            default_size_hint=(1, None),
+            default_size=(None, 44),
+            orientation="vertical",
+            spacing=2,
+            padding=4,
+        )
+        self.cart_rv.layout_manager.bind(minimum_height=self.cart_rv.layout_manager.setter("height"))
+        right.add_widget(self.cart_rv)
 
-        self.total_label = MDLabel(
+        self.total_label = Label(
             text="TOTAL: KES 0",
-            font_style="H5",
-            halign="center",
-            size_hint_y=None,
-            height=50,
+            font_size="18sp", size_hint_y=None, height=44,
+            color=(1, 1, 1, 1),
         )
         right.add_widget(self.total_label)
 
-        checkout_btn = MDRaisedButton(
-            text="CHECKOUT",
-            size_hint_y=None,
-            height=50,
-            md_bg_color=[0.15, 0.68, 0.38, 1],
-            on_release=self.checkout,
+        checkout_btn = Button(
+            text="CHECKOUT", size_hint_y=None, height=48,
+            background_color=(0.15, 0.68, 0.38, 1), color=(1, 1, 1, 1),
+            font_size="16sp", bold=True,
         )
+        checkout_btn.bind(on_release=self.checkout)
         right.add_widget(checkout_btn)
 
+        undo_btn = Button(
+            text="Undo Last Sale", size_hint_y=None, height=32,
+            background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1),
+            font_size="11sp",
+        )
+        undo_btn.bind(on_release=lambda x: self.undo_sale())
+        right.add_widget(undo_btn)
+
         content.add_widget(right)
-        main_layout.add_widget(content)
-        self.add_widget(main_layout)
+        main.add_widget(content)
+        self.add_widget(main)
 
         Clock.schedule_once(lambda dt: self.init_data(), 0.1)
+
+    def _update_top_bg(self, *args):
+        self._top_bg.pos = self.children[0].children[2].pos
+        self._top_bg.size = self.children[0].children[2].size
+
+    def _update_right_bg(self, *args):
+        pass
 
     def init_data(self):
         from backend.stock import get_categories, get_stock_list
@@ -196,29 +291,38 @@ class POSScreen(MDScreen):
 
     def build_category_buttons(self):
         self.cat_box.clear_widgets()
+        self.category_buttons = []
+        all_btn = Button(
+            text="All", font_size="11sp", size_hint_x=None, width=60,
+            background_color=(0.1, 0.13, 0.24, 1), color=(1, 1, 1, 1),
+        )
+        all_btn.bind(on_release=lambda x: self.select_category("All"))
+        self.cat_box.add_widget(all_btn)
+        self.category_buttons.append(("All", all_btn))
+
         for cat_name in sorted(self.categories.keys()):
-            btn = MDFlatButton(
-                text=cat_name,
-                on_release=lambda x, c=cat_name: self.select_category(c),
-                theme_text_color="Custom",
-                text_color=[0.17, 0.24, 0.31, 1],
+            icon = CATEGORY_ICONS.get(cat_name, "\U0001f37d\ufe0f")
+            btn = Button(
+                text=f"{icon} {cat_name}", font_size="10sp",
+                size_hint_x=None, width=120,
+                background_color=(0.8, 0.8, 0.8, 1), color=(0.1, 0.13, 0.24, 1),
             )
+            btn.bind(on_release=lambda x, c=cat_name: self.select_category(c))
             self.cat_box.add_widget(btn)
-            self.category_buttons.append(btn)
+            self.category_buttons.append((cat_name, btn))
+
         if self.categories and not self.current_category:
-            self.current_category = list(self.categories.keys())[0]
+            self.current_category = "All"
         self.highlight_category()
 
     def highlight_category(self):
-        for btn in self.category_buttons:
-            if btn.text == self.current_category:
-                btn.md_bg_color = [0.17, 0.24, 0.31, 1]
-                btn.theme_text_color = "Custom"
-                btn.text_color = [1, 1, 1, 1]
+        for cat_name, btn in self.category_buttons:
+            if cat_name == self.current_category:
+                btn.background_color = (0.1, 0.13, 0.24, 1)
+                btn.color = (1, 1, 1, 1)
             else:
-                btn.md_bg_color = [0.8, 0.8, 0.8, 1]
-                btn.theme_text_color = "Custom"
-                btn.text_color = [0.17, 0.24, 0.31, 1]
+                btn.background_color = (0.8, 0.8, 0.8, 1)
+                btn.color = (0.1, 0.13, 0.24, 1)
 
     def select_category(self, cat_name):
         self.current_category = cat_name
@@ -227,360 +331,229 @@ class POSScreen(MDScreen):
         self.refresh_items()
 
     def refresh_items(self):
-        self.items_grid.clear_widgets()
         query = self.search_field.text.strip().lower()
         if query:
             items = [n for n in self.all_items if query in n.lower()]
+        elif self.current_category == "All":
+            items = list(self.all_items.keys())
         else:
             items = self.categories.get(self.current_category, [])
 
-        from backend.stock import calc_today_stock, get_effective_price
-        stock = calc_today_stock()
-
+        rv_data = []
         for name in items:
             info = self.all_items.get(name)
             if not info:
                 continue
+            from backend.stock import get_effective_price
             price = get_effective_price(name)
-            qty = stock.get(name, 0)
-            oos = qty <= 0
-
-            card = MDCard(
-                orientation="vertical",
-                padding=8,
-                spacing=4,
-                size_hint_y=None,
-                height=80,
-                elevation=2,
-                md_bg_color=[0.99, 0.9, 0.89, 1] if oos else [0.96, 0.96, 0.96, 1],
-                on_release=lambda x, n=name: self.add_item(n),
-            )
-            card.add_widget(MDLabel(
-                text=name,
-                font_style="Caption",
-                size_hint_y=None,
-                height=20,
-                theme_text_color="Error" if oos else "Primary",
-            ))
-            stock_text = "OUT OF STOCK" if oos else f"Stock: {qty}"
-            card.add_widget(MDLabel(
-                text=f"KES {price:,.0f} | {stock_text}",
-                font_style="Caption",
-                size_hint_y=None,
-                height=20,
-                theme_text_color="Error" if oos else "Secondary",
-            ))
-            self.items_grid.add_widget(card)
+            cat = info.get("category", "Other")
+            icon = CATEGORY_ICONS.get(cat, CATEGORY_ICONS["Other"])
+            rv_data.append({
+                "name": name,
+                "icon": icon,
+                "price": price,
+                "price_text": f"KES {price:,.0f}",
+                "category": cat,
+            })
+        self.items_rv.data = rv_data
 
     def on_search(self, instance, text):
+        self.search_text = text
         self.refresh_items()
 
     def add_item(self, name):
         if not self.app:
             return
-        from backend.stock import get_effective_price, get_stock_item, calc_today_stock
-        info = get_stock_item(name)
+        from backend.stock import get_effective_price
+        info = self.all_items.get(name)
         if not info:
             return
-        stock = calc_today_stock()
-        if stock.get(name, 0) <= 0:
-            from kivymd.uix.dialog import MDDialog
-            from kivymd.uix.button import MDFlatButton
-            dialog = MDDialog(
-                title="Out of Stock",
-                text=f"{name} is out of stock.",
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())],
-            )
-            dialog.open()
-            return
         price = get_effective_price(name)
-        self.show_quantity_dialog(name, price)
-
-    def show_quantity_dialog(self, name, price):
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
-
-        content = MDBoxLayout(orientation="vertical", spacing=10, padding=20)
-        content.add_widget(MDLabel(
-            text=name,
-            font_style="H6",
-            halign="center",
-        ))
-        content.add_widget(MDLabel(
-            text=f"KES {price:,.0f} each",
-            halign="center",
-        ))
-
-        qty_box = MDBoxLayout(spacing=10, size_hint_y=None, height=50)
-        minus_btn = MDFlatButton(
-            text="-",
-            on_release=lambda x: self._dec_qty(qty_label),
-            size_hint_x=0.2,
-        )
-        qty_box.add_widget(minus_btn)
-        qty_label = MDLabel(
-            text="1",
-            halign="center",
-            font_style="H5",
-            size_hint_x=0.3,
-        )
-        qty_box.add_widget(qty_label)
-        plus_btn = MDFlatButton(
-            text="+",
-            on_release=lambda x: self._inc_qty(qty_label),
-            size_hint_x=0.2,
-        )
-        qty_box.add_widget(plus_btn)
-        content.add_widget(qty_box)
-
-        self._qty_dialog_result = None
-
-        def confirm(dt):
-            try:
-                qty = int(qty_label.text)
-            except ValueError:
-                qty = 1
-            self._qty_dialog_result = qty
-            dialog.dismiss()
-            self._add_to_cart(name, qty, price)
-
-        dialog = MDDialog(
-            title="Enter Quantity",
-            type="custom",
-            content_cls=content,
-            buttons=[
-                MDFlatButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
-                MDRaisedButton(
-                    text="Add",
-                    md_bg_color=[0.15, 0.68, 0.38, 1],
-                    on_release=confirm,
-                ),
-            ],
-        )
-        dialog.open()
-
-    def _dec_qty(self, label):
-        try:
-            v = int(label.text)
-            if v > 1:
-                label.text = str(v - 1)
-        except ValueError:
-            label.text = "1"
-
-    def _inc_qty(self, label):
-        try:
-            v = int(label.text)
-            label.text = str(v + 1)
-        except ValueError:
-            label.text = "1"
-
-    def _add_to_cart(self, name, qty, price):
         for i, (n, q, p) in enumerate(self.cart):
             if n == name:
-                self.cart[i] = (n, q + qty, p)
-                break
-        else:
-            self.cart.append((name, qty, price))
+                self.cart[i] = (n, q + 1, p)
+                self.refresh_cart()
+                return
+        self.cart.append((name, 1, price))
         self.refresh_cart()
 
-    def refresh_cart(self):
-        self.cart_list.clear_widgets()
-        total = 0
-        for name, qty, price in self.cart:
-            lt = qty * price
-            total += lt
-            item = TwoLineListItem(
-                text=f"{name}  x{qty}",
-                secondary_text=f"KES {price:,.0f}  |  Total: KES {lt:,.0f}",
-                on_release=lambda x, n=name: self._select_cart_item(n),
-            )
-            self.cart_list.add_widget(item)
-        self.total_label.text = f"TOTAL: KES {total:,.0f}"
-        self._selected_cart_item = None
+    def cart_plus(self, name):
+        for i, (n, q, p) in enumerate(self.cart):
+            if n == name:
+                self.cart[i] = (n, q + 1, p)
+                self.refresh_cart()
+                return
 
-    def _select_cart_item(self, name):
-        self._selected_cart_item = name
+    def cart_minus(self, name):
+        for i, (n, q, p) in enumerate(self.cart):
+            if n == name:
+                if q > 1:
+                    self.cart[i] = (n, q - 1, p)
+                else:
+                    self.cart.pop(i)
+                self.refresh_cart()
+                return
 
-    def remove_selected(self, *args):
-        if hasattr(self, '_selected_cart_item') and self._selected_cart_item:
-            self.cart = [(n, q, p) for n, q, p in self.cart if n != self._selected_cart_item]
-            self._selected_cart_item = None
-            self.refresh_cart()
-
-    def decrement_selected(self, *args):
-        if hasattr(self, '_selected_cart_item') and self._selected_cart_item:
-            for i, (n, q, p) in enumerate(self.cart):
-                if n == self._selected_cart_item:
-                    if q > 1:
-                        self.cart[i] = (n, q - 1, p)
-                    else:
-                        self.cart.pop(i)
-                    break
-            self._selected_cart_item = None
-            self.refresh_cart()
-
-    def clear_cart(self, *args):
+    def clear_cart(self):
         if self.cart:
             self.cart.clear()
             self.refresh_cart()
 
+    def refresh_cart(self):
+        total = 0
+        rv_data = []
+        for name, qty, price in self.cart:
+            total += qty * price
+            rv_data.append({"name": name, "qty": qty, "price": price})
+        self.cart_rv.data = rv_data
+        self.total_label.text = f"TOTAL: KES {total:,.0f}"
+        self.cart_count_label.text = str(sum(q for _, q, _ in self.cart))
+
     def checkout(self, *args):
         if not self.cart:
-            from kivymd.uix.dialog import MDDialog
-            from kivymd.uix.button import MDFlatButton
-            dialog = MDDialog(
-                title="Empty",
-                text="Add items first.",
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())],
-            )
-            dialog.open()
             return
-
         total = sum(q * p for _, q, p in self.cart)
         self.show_payment_dialog(total)
 
     def show_payment_dialog(self, total):
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
+        content = BoxLayout(orientation="vertical", spacing=10, padding=15)
 
-        content = MDBoxLayout(orientation="vertical", spacing=10, padding=20, size_hint_y=None, height=300)
-        content.add_widget(MDLabel(
+        content.add_widget(Label(
             text=f"TOTAL DUE: KES {total:,.0f}",
-            font_style="H5",
-            halign="center",
+            font_size="20sp", size_hint_y=None, height=40,
         ))
 
-        method_box = MDBoxLayout(spacing=5, size_hint_y=None, height=40)
+        method_box = BoxLayout(spacing=4, size_hint_y=None, height=36)
         self._pay_method = "cash"
-        for m, lbl in [("cash", "Cash"), ("mpesa", "M-Pesa"), ("till", "Till"), ("credit", "Credit")]:
-            btn = MDFlatButton(
-                text=lbl,
-                on_release=lambda x, mm=m: self._set_pay_method(mm, method_box),
-                md_bg_color=[0.8, 0.8, 0.8, 1] if m != "cash" else [0.15, 0.68, 0.38, 1],
-                theme_text_color="Custom",
-                text_color=[1, 1, 1, 1] if m == "cash" else [0, 0, 0, 1],
+        self._method_btns = {}
+        for m, lbl in [("cash", "Cash"), ("mpesa", "M-Pesa"), ("credit", "Credit")]:
+            btn = Button(
+                text=lbl, font_size="12sp",
+                background_color=(0.15, 0.68, 0.38, 1) if m == "cash" else (0.5, 0.5, 0.5, 1),
+                color=(1, 1, 1, 1),
             )
+            btn.method = m
+            btn.bind(on_release=lambda x: self._select_method(x.method))
+            self._method_btns[m] = btn
             method_box.add_widget(btn)
         content.add_widget(method_box)
 
-        self._pay_amount_field = MDTextField(
-            hint_text="Amount",
-            input_filter="float",
-            size_hint_y=None,
-            height=50,
+        self._pay_amount = TextInput(
+            hint_text="Amount", input_filter="float",
+            size_hint_y=None, height=40, font_size="18sp",
+            multiline=False, text=str(int(total)),
         )
-        content.add_widget(self._pay_amount_field)
+        content.add_widget(self._pay_amount)
 
-        self._pay_customer_field = MDTextField(
+        self._pay_customer = TextInput(
             hint_text="Customer Name (for credit)",
-            size_hint_y=None,
-            height=50,
+            size_hint_y=None, height=40, multiline=False,
         )
-        content.add_widget(self._pay_customer_field)
+        content.add_widget(self._pay_customer)
 
-        def confirm_payment(dt):
-            try:
-                amt = float(self._pay_amount_field.text or 0)
-            except ValueError:
-                amt = 0
+        btn_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
+        cancel_btn = Button(text="Cancel", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1))
+        confirm_btn = Button(text="CONFIRM", background_color=(0.15, 0.68, 0.38, 1), color=(1, 1, 1, 1),
+                             font_size="14sp", bold=True)
+        btn_box.add_widget(cancel_btn)
+        btn_box.add_widget(confirm_btn)
+        content.add_widget(btn_box)
 
-            method = self._pay_method
-            if method == "cash" and amt < total:
-                from kivymd.uix.dialog import MDDialog
-                from kivymd.uix.button import MDFlatButton
-                d = MDDialog(
-                    title="Short Payment",
-                    text=f"Need KES {total - amt:,.0f} more.",
-                    buttons=[MDFlatButton(text="OK", on_release=lambda x: d.dismiss())],
-                )
-                d.open()
+        popup = Popup(
+            title="Payment", content=content,
+            size_hint=(0.95, 0.7), auto_dismiss=False,
+        )
+        cancel_btn.bind(on_release=popup.dismiss)
+        confirm_btn.bind(on_release=lambda x: self._confirm_payment(popup, total))
+        popup.open()
+
+    def _select_method(self, method):
+        self._pay_method = method
+        for m, btn in self._method_btns.items():
+            if m == method:
+                btn.background_color = (0.15, 0.68, 0.38, 1)
+            else:
+                btn.background_color = (0.5, 0.5, 0.5, 1)
+
+    def _confirm_payment(self, popup, total):
+        try:
+            amt = float(self._pay_amount.text or 0)
+        except ValueError:
+            amt = 0
+
+        method = self._pay_method
+        if method == "cash" and amt < total:
+            return
+        if method == "credit":
+            cust = self._pay_customer.text.strip()
+            if not cust:
                 return
 
-            if method == "credit":
-                cust = self._pay_customer_field.text.strip()
-                if not cust:
-                    d = MDDialog(
-                        title="Required",
-                        text="Enter customer name.",
-                        buttons=[MDFlatButton(text="OK", on_release=lambda x: d.dismiss())],
-                    )
-                    d.open()
-                    return
+        from backend.database import today_key
+        from backend.sales import record_sale
+        from datetime import datetime
 
-            from backend.database import today_key
-            from backend.sales import record_sale
-            from datetime import datetime
+        dk = today_key()
+        now = datetime.now()
+        items_sold = {n: q for n, q, p in self.cart}
 
-            dk = today_key()
-            now = datetime.now()
-            items_sold = {n: q for n, q, p in self.cart}
+        txn = {
+            "time": now.strftime("%H:%M:%S"),
+            "items": items_sold,
+            "total": total,
+            "payment_method": method,
+            "cashier": self.app.current_user["display_name"],
+        }
+        if method == "cash":
+            txn["cash_received"] = amt
+            txn["change"] = amt - total
+        elif method == "mpesa":
+            txn["mpesa_amount"] = amt
+        elif method == "credit":
+            txn["customer"] = self._pay_customer.text.strip()
 
-            txn = {
-                "time": now.strftime("%H:%M:%S"),
-                "items": items_sold,
-                "total": total,
-                "payment_method": method,
-                "cashier": self.app.current_user["display_name"],
-            }
+        record_sale(dk, txn)
+        popup.dismiss()
+        self.cart.clear()
+        self.refresh_cart()
+        self.refresh_items()
 
-            if method == "cash":
-                txn["cash_received"] = amt
-                txn["change"] = amt - total
-                msg = f"Cash: KES {amt:,.2f}\nChange: KES {txn['change']:,.2f}"
-            elif method == "mpesa":
-                txn["mpesa_amount"] = amt
-                msg = f"M-Pesa: KES {amt:,.2f}"
-            elif method == "till":
-                txn["till_amount"] = amt
-                msg = f"Till: KES {amt:,.2f}"
-            elif method == "credit":
-                txn["customer"] = self._pay_customer_field.text.strip()
-                msg = f"Credit: {txn['customer']}\nKES {total:,.2f}"
-            else:
-                msg = f"Paid: KES {total:,.2f}"
+    def undo_sale(self):
+        from backend.database import today_key
+        from backend.sales import load_sales
+        dk = today_key()
+        sales = load_sales(dk)
+        txns = sales.get("transactions", [])
+        if not txns:
+            return
+        last = txns[-1]
 
-            record_sale(dk, txn)
-            dialog.dismiss()
+        content = BoxLayout(orientation="vertical", spacing=10, padding=15)
+        items_str = ", ".join(f"{n}x{q}" for n, q in last.get("items", {}).items())
+        content.add_widget(Label(
+            text=f"Undo sale?\nTime: {last.get('time', '')}\n"
+                 f"Cashier: {last.get('cashier', '')}\n"
+                 f"Items: {items_str}\n"
+                 f"Total: KES {last.get('total', 0):,.0f}",
+            font_size="14sp", halign="center",
+            text_size=(300, None),
+        ))
+        btn_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
+        cancel_btn = Button(text="Cancel", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1))
+        undo_btn = Button(text="Undo", background_color=(0.91, 0.3, 0.24, 1), color=(1, 1, 1, 1))
+        btn_box.add_widget(cancel_btn)
+        btn_box.add_widget(undo_btn)
+        content.add_widget(btn_box)
 
-            d = MDDialog(
-                title="Payment Complete",
-                text=msg,
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: d.dismiss())],
-            )
-            d.open()
+        popup = Popup(title="Undo Sale?", content=content, size_hint=(0.85, 0.5), auto_dismiss=False)
+        cancel_btn.bind(on_release=popup.dismiss)
+        undo_btn.bind(on_release=lambda x: (popup.dismiss(), self._do_undo(dk)))
+        popup.open()
 
-            self.cart.clear()
-            self.refresh_cart()
-            self.refresh_items()
-
-        dialog = MDDialog(
-            title="Payment",
-            type="custom",
-            content_cls=content,
-            buttons=[
-                MDFlatButton(text="Cancel", on_release=lambda x: dialog.dismiss()),
-                MDRaisedButton(
-                    text="CONFIRM",
-                    md_bg_color=[0.15, 0.68, 0.38, 1],
-                    on_release=confirm_payment,
-                ),
-            ],
-        )
-        self._pay_dialog = dialog
-        dialog.open()
-
-    def _set_pay_method(self, method, box):
-        self._pay_method = method
-        for child in box.children:
-            if hasattr(child, 'text'):
-                if child.text.lower() == method or (
-                    method == "mpesa" and child.text == "M-Pesa"
-                ):
-                    child.md_bg_color = [0.15, 0.68, 0.38, 1]
-                    child.text_color = [1, 1, 1, 1]
-                else:
-                    child.md_bg_color = [0.8, 0.8, 0.8, 1]
-                    child.text_color = [0, 0, 0, 1]
+    def _do_undo(self, dk):
+        from backend.sales import undo_last_sale
+        undo_last_sale(dk)
+        self.refresh_items()
 
     def show_report(self, *args):
         self.manager.current = "report"
@@ -591,12 +564,3 @@ class POSScreen(MDScreen):
     def show_admin(self, *args):
         if self.app and self.app.current_user and self.app.current_user["role"] == "admin":
             self.manager.current = "admin"
-        else:
-            from kivymd.uix.dialog import MDDialog
-            from kivymd.uix.button import MDFlatButton
-            dialog = MDDialog(
-                title="Denied",
-                text="Admin access required.",
-                buttons=[MDFlatButton(text="OK", on_release=lambda x: dialog.dismiss())],
-            )
-            dialog.open()

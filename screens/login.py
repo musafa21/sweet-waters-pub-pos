@@ -1,9 +1,9 @@
 from kivy.uix.screenmanager import Screen
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.button import MDRaisedButton, MDFlatButton
-from kivymd.uix.card import MDCard
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.graphics import Color, Rectangle
 
 
 class LoginScreen(Screen):
@@ -20,80 +20,88 @@ class LoginScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        root = MDBoxLayout(
-            orientation="vertical",
-            padding=40,
-            spacing=20,
-            md_bg_color=[0.17, 0.24, 0.31, 1],
-        )
-        root.add_widget(MDLabel(
+        root = BoxLayout(orientation="vertical", padding=40, spacing=20)
+
+        with root.canvas.before:
+            Color(0.17, 0.24, 0.31, 1)
+            self._bg = Rectangle(pos=root.pos, size=root.size)
+        root.bind(pos=self._update_bg, size=self._update_bg)
+
+        root.add_widget(Label(
             text="SWEET WATERS PUB",
-            font_style="H4",
-            halign="center",
-            theme_text_color="Custom",
-            text_color=[1, 1, 1, 1],
-            size_hint_y=None,
-            height=60,
+            font_size="28sp",
+            size_hint_y=None, height=60,
+            color=(1, 1, 1, 1),
         ))
-        root.add_widget(MDLabel(
+        root.add_widget(Label(
             text="Staff Login",
-            font_style="H6",
-            halign="center",
-            theme_text_color="Custom",
-            text_color=[0.74, 0.76, 0.78, 1],
-            size_hint_y=None,
-            height=40,
+            font_size="18sp",
+            size_hint_y=None, height=40,
+            color=(0.7, 0.7, 0.7, 1),
         ))
 
-        card = MDCard(
+        card = BoxLayout(
             orientation="vertical",
-            padding=30,
-            spacing=15,
-            size_hint=[0.9, None],
-            height=280,
+            padding=30, spacing=15,
+            size_hint=(0.9, None), height=260,
             pos_hint={"center_x": 0.5},
-            elevation=8,
         )
+        with card.canvas.before:
+            Color(0.1, 0.13, 0.2, 1)
+            self._card_bg = Rectangle(pos=card.pos, size=card.size)
+        card.bind(pos=self._update_card, size=self._update_card)
 
-        self.username_field = MDTextField(
+        self.username_field = TextInput(
             hint_text="Username",
-            icon_left="account",
-            size_hint_y=None,
-            height=50,
+            size_hint_y=None, height=45,
+            multiline=False,
+            font_size="16sp",
         )
         card.add_widget(self.username_field)
 
-        self.password_field = MDTextField(
+        self.password_field = TextInput(
             hint_text="Password",
-            icon_left="lock",
             password=True,
-            size_hint_y=None,
-            height=50,
+            size_hint_y=None, height=45,
+            multiline=False,
+            font_size="16sp",
         )
         card.add_widget(self.password_field)
 
-        self.error_label = MDLabel(
+        self.error_label = Label(
             text="",
-            theme_text_color="Error",
-            halign="center",
-            size_hint_y=None,
-            height=30,
+            color=(0.91, 0.3, 0.24, 1),
+            size_hint_y=None, height=25,
+            font_size="13sp",
         )
         card.add_widget(self.error_label)
 
-        login_btn = MDRaisedButton(
+        login_btn = Button(
             text="LOGIN",
+            size_hint=(0.8, None), height=50,
             pos_hint={"center_x": 0.5},
-            size_hint=[0.8, None],
-            height=50,
-            md_bg_color=[0.15, 0.68, 0.38, 1],
-            on_release=self.do_login,
+            background_color=(0.15, 0.68, 0.38, 1),
+            color=(1, 1, 1, 1),
+            font_size="16sp",
+            bold=True,
         )
+        login_btn.bind(on_release=self.do_login)
         card.add_widget(login_btn)
 
         root.add_widget(card)
-        root.add_widget(MDLabel())  # spacer
+        root.add_widget(Label())
         self.add_widget(root)
+
+        self.password_field.bind(on_text_validate=lambda x: self.do_login())
+
+    def _update_bg(self, *args):
+        self._bg.pos = self.children[0].pos
+        self._bg.size = self.children[0].size
+
+    def _update_card(self, *args):
+        card = self.children[0].children[1]
+        self._card_bg.pos = card.pos
+        self._card_bg.size = card.size
 
     def do_login(self, *args):
         username = self.username_field.text.strip()
