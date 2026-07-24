@@ -7,6 +7,9 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,json,ttf,txt
 source.include_patterns = assets/*,data/*
 
+version = 1.0.0
+version.regex = __version__ = ['\"](.+)['\"]
+
 requirements = python3,kivy,kivymd,fpdf2,openpyxl,pillow
 
 orientation = portrait
