@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -11,6 +11,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          df -h
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -26,7 +33,7 @@ jobs:
             libbz2-dev libreadline-dev libsqlite3-dev curl \
             libncursesw5-dev xz-utils tk-dev libxml2-dev \
             libxmlsec1-dev libffi-dev liblzma-dev \
-            libncurses5-dev libtinfo5
+            libncurses5-dev
 
       - name: Install Buildozer
         run: |
@@ -34,21 +41,15 @@ jobs:
           pip install Cython
           pip install https://github.com/kivy/buildozer/archive/refs/heads/master.zip
 
-      - name: Copy source to Linux FS
-        run: |
-          cp -r . ~/build_app
-          cd ~/build_app
-
       - name: Build APK
         run: |
-          cd ~/build_app
           yes | buildozer android debug 2>&1 || true
           ls -la bin/
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: sweet-waters-pub-apk
-          path: ~/build_app/bin/*.apk
+          path: bin/*.apk
           if-no-files-found: warn
           retention-days: 30
