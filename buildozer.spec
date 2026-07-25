@@ -6,7 +6,7 @@ package.domain = com.sweetwaterspub
 source.dir = .
 source.include_exts = py,png,jpg,kv,json,ttf,txt
 
-version = 3.2.0
+version = 3.2.1
 
 requirements = python3,kivy
 

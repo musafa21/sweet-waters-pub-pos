@@ -49,9 +49,6 @@ def export_csv(date_key, path):
                         t.get("payment_method", ""), items_str, t.get("total", 0)])
     return path
 
-def export_pdf(date_key, path):
-    return None
-
 def get_analytics(date_key):
     from .stock import get_stock_list, get_effective_price
     sales = load_sales(date_key)

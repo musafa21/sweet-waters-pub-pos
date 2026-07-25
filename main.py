@@ -3,7 +3,7 @@ import sys
 import time
 import traceback
 
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,17 +12,29 @@ _crash_log_path = None
 
 def _write_crash_log(exc):
     import datetime as dt
+    candidates = []
+    if _crash_log_path:
+        candidates.append(_crash_log_path)
     try:
-        log_path = _crash_log_path or os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "crash.log")
-        with open(log_path, "a") as f:
-            f.write(f"\n{'='*60}\n")
-            f.write(f"CRASH: {dt.datetime.now()}\n")
-            f.write(f"Version: {__version__}\n")
-            traceback.print_exc(file=f)
-        print(f"[CRASH] {exc} — see crash.log")
+        from android.storage import app_storage_path
+        candidates.append(os.path.join(app_storage_path(), "crash.log"))
     except Exception:
         pass
+    candidates.append(os.path.expanduser("~/crash.log"))
+    candidates.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash.log"))
+    for log_path in candidates:
+        try:
+            with open(log_path, "a") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"CRASH: {dt.datetime.now()}\n")
+                f.write(f"Version: {__version__}\n")
+                f.write(f"Path tried: {log_path}\n")
+                traceback.print_exc(file=f)
+            print(f"[CRASH] {exc} — see {log_path}")
+            return
+        except Exception:
+            continue
+    print(f"[CRASH] {exc} — could not write crash log to any path")
 
 
 try:
@@ -46,20 +58,38 @@ class SweetWatersPubApp(App):
         self._warned_timeout = False
 
     def build(self):
-        from backend.database import init_data_dir, seed_default_staff, DATA_DIR
-        init_data_dir()
         global _crash_log_path
+        try:
+            from android.storage import app_storage_path
+            _crash_log_path = os.path.join(app_storage_path(), "crash.log")
+        except Exception:
+            pass
+
+        from backend.database import init_data_dir, seed_default_staff, DATA_DIR
+        try:
+            init_data_dir()
+        except Exception as e:
+            _write_crash_log(e)
+            raise
         _crash_log_path = os.path.join(DATA_DIR, "crash.log")
-        seed_default_staff()
+
+        try:
+            seed_default_staff()
+        except Exception as e:
+            _write_crash_log(e)
 
         if platform != "android":
             Window.size = (400, 700)
 
-        from screens.login import LoginScreen
-        from screens.pos import POSScreen
-        from screens.report import ReportScreen
-        from screens.debts import DebtScreen
-        from screens.admin import AdminScreen
+        try:
+            from screens.login import LoginScreen
+            from screens.pos import POSScreen
+            from screens.report import ReportScreen
+            from screens.debts import DebtScreen
+            from screens.admin import AdminScreen
+        except Exception as e:
+            _write_crash_log(e)
+            raise
 
         self.sm = ScreenManager()
 
@@ -71,9 +101,13 @@ class SweetWatersPubApp(App):
             ("admin", AdminScreen),
         ]
         for name, cls in screens:
-            scr = cls(name=name)
-            scr.set_app(self)
-            self.sm.add_widget(scr)
+            try:
+                scr = cls(name=name)
+                scr.set_app(self)
+                self.sm.add_widget(scr)
+            except Exception as e:
+                _write_crash_log(e)
+                raise
 
         self.sm.current = "login"
 
