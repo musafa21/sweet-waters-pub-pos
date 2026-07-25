@@ -6,22 +6,21 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
-from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 
 MAX_ATTEMPTS = 5
 LOCKOUT_SECONDS = 300
 
-BG_DARK = (0.06, 0.06, 0.12, 1)
-BG_CARD = (0.10, 0.10, 0.18, 1)
-BG_INPUT = (0.14, 0.14, 0.24, 1)
-ACCENT = (0.36, 0.24, 0.73, 1)
-ACCENT_BRIGHT = (0.48, 0.32, 0.92, 1)
-TEXT_PRIMARY = (1, 1, 1, 1)
-TEXT_SECONDARY = (0.65, 0.65, 0.75, 1)
-TEXT_MUTED = (0.45, 0.45, 0.55, 1)
-ERR_COLOR = (0.91, 0.27, 0.27, 1)
-SUCCESS_COLOR = (0.2, 0.78, 0.55, 1)
+BG = (0.07, 0.07, 0.14, 1)
+CARD = (0.12, 0.12, 0.20, 1)
+INPUT_BG = (0.16, 0.16, 0.26, 1)
+ACCENT = (0.42, 0.28, 0.82, 1)
+ACCENT_PRESS = (0.34, 0.22, 0.68, 1)
+WHITE = (1, 1, 1, 1)
+MUTED = (0.5, 0.5, 0.6, 1)
+HINT = (0.4, 0.4, 0.5, 1)
+ERR = (0.95, 0.3, 0.3, 1)
+GOLD = (1.0, 0.78, 0.2, 1)
 
 
 class LoginScreen(Screen):
@@ -37,167 +36,169 @@ class LoginScreen(Screen):
     def on_enter(self):
         if not self.ids:
             self.build_ui()
-        self.username_field.text = ""
-        self.password_field.text = ""
+        self.username_input.text = ""
+        self.password_input.text = ""
         self.error_label.text = ""
         self._check_lockout()
 
     def build_ui(self):
         self.clear_widgets()
-        root = BoxLayout(orientation="vertical", size_hint=(1, 1))
+        root = BoxLayout(orientation="vertical")
 
         with root.canvas.before:
-            Color(*BG_DARK)
-            self._bg = Rectangle(pos=root.pos, size=root.size)
+            Color(*BG)
+            self._bg_rect = Rectangle(pos=root.pos, size=root.size)
         root.bind(pos=self._update_bg, size=self._update_bg)
 
-        root.add_widget(Widget(size_hint_y=0.15))
+        root.add_widget(Widget(size_hint_y=0.2))
 
-        header_box = BoxLayout(orientation="vertical", size_hint_y=0.12, spacing=4)
-        header_box.add_widget(Label(
+        brand = BoxLayout(orientation="vertical", size_hint_y=0.12, spacing=2)
+        brand.add_widget(Label(
             text="SWEET WATERS",
-            font_size="32sp",
-            color=TEXT_PRIMARY,
-            bold=True,
+            font_size="30sp", color=WHITE, bold=True,
+            size_hint_y=0.6,
         ))
-        header_box.add_widget(Label(
+        sub = BoxLayout(size_hint_y=0.4, spacing=4)
+        sub.add_widget(Label(text="", size_hint_x=0.2))
+        sub.add_widget(Label(
             text="P U B",
-            font_size="16sp",
-            color=ACCENT_BRIGHT,
-            letterSpacing=0.3,
+            font_size="15sp", color=GOLD,
+            size_hint_x=0.6,
         ))
-        root.add_widget(header_box)
+        sub.add_widget(Label(text="", size_hint_x=0.2))
+        brand.add_widget(sub)
+        root.add_widget(brand)
 
-        root.add_widget(Widget(size_hint_y=0.06))
+        root.add_widget(Widget(size_hint_y=0.04))
 
-        card = BoxLayout(
-            orientation="vertical",
-            padding=[32, 24, 32, 24],
-            spacing=16,
-            size_hint=(0.85, None), height=280,
+        card_wrapper = BoxLayout(
+            size_hint=(0.82, None), height=320,
             pos_hint={"center_x": 0.5},
         )
+        card = BoxLayout(
+            orientation="vertical",
+            padding=[28, 24, 28, 20],
+            spacing=12,
+        )
         with card.canvas.before:
-            Color(*BG_CARD)
-            self._card_bg = Rectangle(pos=card.pos, size=card.size)
-            Color(0.36, 0.24, 0.73, 0.3)
-            self._card_border = Line(
-                rounded_rectangle=(card.x, card.y, card.width, card.height, 12),
-                width=1,
+            Color(*CARD)
+            self._card_rect = RoundedRectangle(
+                pos=card.pos, size=card.size, radius=[16],
+            )
+            Color(*ACCENT[0], ACCENT[1], ACCENT[2], 0.15)
+            self._card_border = RoundedRectangle(
+                pos=(card.x - 1, card.y - 1),
+                size=(card.width + 2, card.height + 2),
+                radius=[17],
             )
         card.bind(pos=self._update_card, size=self._update_card)
 
         card.add_widget(Label(
             text="Staff Login",
-            font_size="18sp",
-            color=TEXT_SECONDARY,
+            font_size="17sp", color=MUTED,
             size_hint_y=None, height=28,
         ))
 
-        self.username_field = self._make_input("Username", False)
-        card.add_widget(self.username_field)
+        self.username_input = self._make_input("Username", False)
+        card.add_widget(self.username_input)
 
-        self.password_field = self._make_input("Password", True)
-        card.add_widget(self.password_field)
+        self.password_input = self._make_input("Password", True)
+        card.add_widget(self.password_input)
 
         self.error_label = Label(
-            text="",
-            color=ERR_COLOR,
-            size_hint_y=None, height=22,
-            font_size="12sp",
+            text="", color=ERR,
+            font_size="12sp", size_hint_y=None, height=20,
         )
         card.add_widget(self.error_label)
 
-        login_btn = Button(
-            text="S I G N   I N",
-            size_hint=(0.85, None), height=48,
-            pos_hint={"center_x": 0.5},
-            background_color=ACCENT,
-            color=TEXT_PRIMARY,
-            font_size="14sp",
-            bold=True,
+        self.login_btn = Button(
+            text="SIGN IN",
+            size_hint=(1, None), height=50,
+            background_color=ACCENT, color=WHITE,
+            font_size="16sp", bold=True,
+            background_normal="",
         )
-        with login_btn.canvas.before:
-            Color(*ACCENT)
-            self._btn_bg = Rectangle(pos=login_btn.pos, size=login_btn.size)
-        login_btn.bind(pos=self._update_btn_bg, size=self._update_btn_bg)
-        login_btn.bind(on_release=self.do_login)
-        card.add_widget(login_btn)
+        self.login_btn.bind(on_release=self.do_login)
+        self.login_btn.bind(color_down=lambda *a: None)
+        card.add_widget(self.login_btn)
 
-        root.add_widget(card)
-        root.add_widget(Widget(size_hint_y=0.2))
+        self.login_hint = Label(
+            text="Default: admin / changeme",
+            font_size="11sp", color=MUTED,
+            size_hint_y=None, height=20,
+        )
+        card.add_widget(self.login_hint)
+
+        card_wrapper.add_widget(card)
+        root.add_widget(card_wrapper)
+
+        root.add_widget(Widget(size_hint_y=0.25))
         self.add_widget(root)
 
-        self.password_field.bind(on_text_validate=lambda x: self.do_login())
+        self.password_input.bind(on_text_validate=lambda x: self.do_login())
 
     def _make_input(self, hint, is_password):
-        box = BoxLayout(orientation="vertical", size_hint_y=None, height=52, spacing=2)
+        box = BoxLayout(orientation="vertical", size_hint_y=None, height=56, spacing=2)
         lbl = Label(
-            text=hint,
-            font_size="11sp",
-            color=TEXT_MUTED,
-            size_hint_y=None, height=16,
-            halign="left",
+            text=hint.upper(), font_size="10sp", color=MUTED,
+            size_hint_y=None, height=14, halign="left",
             padding=[4, 0],
         )
         lbl.bind(size=lbl.setter("text_size"))
         inp = TextInput(
-            hint_text=hint,
+            hint_text=f"Enter {hint.lower()}",
             password=is_password,
-            size_hint_y=None, height=34,
-            multiline=False,
-            font_size="15sp",
-            foreground_color=TEXT_PRIMARY,
-            cursor_color=ACCENT_BRIGHT,
-            background_color=BG_INPUT,
+            size_hint_y=None, height=36,
+            multiline=False, font_size="16sp",
+            foreground_color=WHITE,
+            cursor_color=ACCENT,
+            background_color=INPUT_BG,
             background_normal="",
-            hint_text_color=TEXT_MUTED,
+            hint_text_color=HINT,
             padding=[12, 8, 12, 8],
         )
         box.add_widget(lbl)
         box.add_widget(inp)
         if is_password:
-            self.password_field = inp
+            self._pw_box = box
+            self.password_input = inp
         else:
-            self.username_field = inp
+            self._usr_box = box
+            self.username_input = inp
         return box
 
     def _update_bg(self, *args):
-        self._bg.pos = self.children[0].pos
-        self._bg.size = self.children[0].size
+        self._bg_rect.pos = self.children[0].pos
+        self._bg_rect.size = self.children[0].size
 
     def _update_card(self, *args):
         card = self.children[0].children[1]
-        self._card_bg.pos = card.pos
-        self._card_bg.size = card.size
-        self._card_border.rounded_rectangle = (
-            card.x, card.y, card.width, card.height, 12
-        )
-
-    def _update_btn_bg(self, *args):
-        btn = self.children[0].children[1].children[-1]
-        self._btn_bg.pos = btn.pos
-        self._btn_bg.size = btn.size
+        self._card_rect.pos = card.pos
+        self._card_rect.size = card.size
+        self._card_border.pos = (card.x - 1, card.y - 1)
+        self._card_border.size = (card.width + 2, card.height + 2)
 
     def _check_lockout(self):
         now = time.time()
         if self._locked_until > now:
             remaining = int(self._locked_until - now)
-            self.error_label.text = f"Locked out — try again in {remaining}s"
-            self.username_field.children[0].disabled = True
-            self.password_field.children[0].disabled = True
+            self.error_label.text = f"Locked out. Try again in {remaining}s"
+            self.username_input.disabled = True
+            self.password_input.disabled = True
+            self.login_btn.disabled = True
         else:
             self._locked_until = 0
-            self.username_field.children[0].disabled = False
-            self.password_field.children[0].disabled = False
+            self.username_input.disabled = False
+            self.password_input.disabled = False
+            self.login_btn.disabled = False
 
     def do_login(self, *args):
         self._check_lockout()
         if self._locked_until > time.time():
             return
 
-        username = self.username_field.children[0].text.strip()
-        password = self.password_field.children[0].text
+        username = self.username_input.text.strip()
+        password = self.password_input.text
         if not username or not password:
             self.error_label.text = "Enter username and password"
             return
@@ -222,8 +223,9 @@ class LoginScreen(Screen):
             if self._attempts >= MAX_ATTEMPTS:
                 self._locked_until = time.time() + LOCKOUT_SECONDS
                 self.error_label.text = "Too many attempts. Locked for 5 min."
-                self.username_field.children[0].disabled = True
-                self.password_field.children[0].disabled = True
+                self.username_input.disabled = True
+                self.password_input.disabled = True
+                self.login_btn.disabled = True
             else:
-                self.error_label.text = f"Invalid credentials ({remaining} left)"
-            self.password_field.children[0].text = ""
+                self.error_label.text = f"Wrong username or password ({remaining} left)"
+            self.password_input.text = ""

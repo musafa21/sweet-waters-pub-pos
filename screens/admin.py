@@ -8,25 +8,25 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, Line
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 
 _MIN_PW_LEN = 6
 
-BG_DARK = (0.06, 0.06, 0.12, 1)
-BG_CARD = (0.10, 0.10, 0.18, 1)
-BG_INPUT = (0.14, 0.14, 0.24, 1)
-ACCENT = (0.36, 0.24, 0.73, 1)
-ACCENT_BRIGHT = (0.48, 0.32, 0.92, 1)
+BG = (0.07, 0.07, 0.14, 1)
+CARD = (0.12, 0.12, 0.20, 1)
+SURFACE = (0.14, 0.14, 0.24, 1)
+INPUT_BG = (0.16, 0.16, 0.26, 1)
+ACCENT = (0.42, 0.28, 0.82, 1)
 SUCCESS = (0.2, 0.78, 0.55, 1)
-DANGER = (0.91, 0.27, 0.27, 1)
-WARNING = (0.95, 0.65, 0.06, 1)
-INFO = (0.14, 0.38, 0.62, 1)
-ORANGE = (0.85, 0.42, 0.08, 1)
-PURPLE = (0.56, 0.27, 0.68, 1)
-TEXT_PRIMARY = (1, 1, 1, 1)
-TEXT_SECONDARY = (0.65, 0.65, 0.75, 1)
-TEXT_MUTED = (0.45, 0.45, 0.55, 1)
-BORDER_COLOR = (0.22, 0.22, 0.32, 1)
+DANGER = (0.95, 0.3, 0.3, 1)
+WARNING = (1.0, 0.65, 0.1, 1)
+INFO = (0.18, 0.4, 0.7, 1)
+ORANGE = (0.88, 0.45, 0.1, 1)
+PURPLE = (0.58, 0.28, 0.72, 1)
+WHITE = (1, 1, 1, 1)
+MUTED = (0.5, 0.5, 0.6, 1)
+HINT = (0.4, 0.4, 0.5, 1)
+DIVIDER = (0.2, 0.2, 0.3, 1)
 
 
 def _sanitize_input(text):
@@ -54,52 +54,65 @@ class AdminScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
-        main = BoxLayout(orientation="vertical", size_hint=(1, 1))
+        main = BoxLayout(orientation="vertical")
 
         with main.canvas.before:
-            Color(*BG_DARK)
-            self._main_bg = Rectangle(pos=main.pos, size=main.size)
-        main.bind(pos=lambda s, _: self._main_bg.__setattr__("pos", s.pos))
-        main.bind(size=lambda s, _: self._main_bg.__setattr__("size", s.size))
+            Color(*BG)
+            self._bg = Rectangle(pos=main.pos, size=main.size)
+        main.bind(pos=lambda s, _: self._bg.__setattr__("pos", s.pos))
+        main.bind(size=lambda s, _: self._bg.__setattr__("size", s.size))
 
-        header = BoxLayout(size_hint_y=None, height=52, padding=[14, 0, 14, 0])
+        header = BoxLayout(size_hint_y=None, height=56, padding=[16, 0, 16, 0])
         with header.canvas.before:
-            Color(*BG_CARD)
+            Color(*CARD)
             header._bg = Rectangle(pos=header.pos, size=header.size)
         header.bind(pos=lambda s, _: s._bg.__setattr__("pos", s.pos))
         header.bind(size=lambda s, _: s._bg.__setattr__("size", s.size))
         header.add_widget(Label(
-            text="ADMIN TOOLS", font_size="16sp", color=TEXT_PRIMARY, bold=True,
+            text="\u2699\ufe0f  Admin Tools",
+            font_size="18sp", color=WHITE, bold=True,
         ))
         main.add_widget(header)
 
-        content = BoxLayout(orientation="vertical", spacing=10, padding=12)
-        content.add_widget(Label())
-        for text, action, color in [
-            ("\U0001f4e6  Manage Inventory", self.manage_inventory, SUCCESS),
-            ("\U0001f465  Manage Staff", self.manage_staff, INFO),
-            ("\U0001f4e5  Add Stock", self.add_stock, ORANGE),
-            ("\U0001f4ca  Stock Taking", self.stock_take, PURPLE),
-            ("\U0001f504  Edit Prices", self.edit_prices, WARNING),
-            ("\u26a0  Reset All Data", self.reset_data, DANGER),
-        ]:
+        scroll = ScrollView(bar_width=4, bar_color=(0.3, 0.3, 0.4, 0.3))
+        btn_box = BoxLayout(
+            orientation="vertical", size_hint_y=None,
+            spacing=10, padding=[16, 16, 16, 16],
+        )
+        btn_box.bind(minimum_height=btn_box.setter("height"))
+
+        actions = [
+            ("\U0001f4e6  Manage Inventory", self.manage_inventory, SUCCESS, 58),
+            ("\U0001f465  Manage Staff", self.manage_staff, INFO, 58),
+            ("\U0001f4e5  Add Stock", self.add_stock, ORANGE, 58),
+            ("\U0001f4ca  Stock Taking", self.stock_take, PURPLE, 58),
+            ("\U0001f504  Edit Prices", self.edit_prices, WARNING, 58),
+            ("\u26a0\ufe0f  Reset All Data", self.reset_data, DANGER, 58),
+        ]
+        for text, action, color, h in actions:
             btn = Button(
-                text=text, font_size="14sp", size_hint_y=None, height=52,
-                background_color=color, color=TEXT_PRIMARY,
-                background_normal="", halign="left", padding=[16, 0],
+                text=text, font_size="15sp",
+                size_hint_y=None, height=h,
+                background_color=color, color=WHITE,
+                background_normal="", halign="left",
+                padding=[16, 0],
             )
             btn.bind(on_release=action)
-            content.add_widget(btn)
-        content.add_widget(Label())
-        main.add_widget(content)
+            btn_box.add_widget(btn)
 
-        bottom = BoxLayout(size_hint_y=None, height=48, padding=8)
-        back_btn = Button(text="Back to POS", font_size="13sp",
-                          background_color=BG_INPUT, color=TEXT_SECONDARY,
-                          background_normal="")
+        btn_box.add_widget(Widget(size_hint_y=None, height=10))
+        scroll.add_widget(btn_box)
+        main.add_widget(scroll)
+
+        bottom = BoxLayout(size_hint_y=None, height=56, padding=8)
+        back_btn = Button(
+            text="Back to POS", font_size="14sp",
+            background_color=SURFACE, color=MUTED, background_normal="",
+        )
         back_btn.bind(on_release=lambda x: setattr(self.manager, "current", "pos"))
         bottom.add_widget(back_btn)
         main.add_widget(bottom)
+
         self.add_widget(main)
 
     def _log_audit(self, action):
@@ -117,18 +130,17 @@ class AdminScreen(Screen):
         save_json("audit", audit)
 
     def _make_input(self, hint, is_password=False, input_filter=None):
-        inp = TextInput(
-            hint_text=hint, size_hint_y=None, height=42, multiline=False,
-            font_size="13sp", password=is_password,
-            background_color=BG_INPUT, background_normal="",
-            foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
-            hint_text_color=TEXT_MUTED, padding=[10, 10],
+        return TextInput(
+            hint_text=hint, size_hint_y=None, height=44, multiline=False,
+            font_size="14sp", password=is_password,
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[12, 10],
             input_filter=input_filter,
         )
-        return inp
 
     def manage_inventory(self, *args):
-        from backend.stock import get_stock_list, set_stock_item
+        from backend.stock import get_stock_list
 
         content = BoxLayout(orientation="vertical", spacing=6, padding=12)
 
@@ -136,19 +148,19 @@ class AdminScreen(Screen):
         inv_box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=2)
         inv_box.bind(minimum_height=inv_box.setter("height"))
         for name, info in sorted(get_stock_list().items()):
-            row = BoxLayout(size_hint_y=None, height=36, padding=[6, 2])
+            row = BoxLayout(size_hint_y=None, height=40, padding=[6, 4])
             row.add_widget(Label(text=name, font_size="12sp", halign="left",
                                  text_size=(None, None), size_hint_x=0.45,
-                                 color=TEXT_PRIMARY))
+                                 color=WHITE))
             row.add_widget(Label(text=f"KES {info['price']:,.0f}", font_size="12sp",
-                                 size_hint_x=0.3, color=ACCENT_BRIGHT))
+                                 size_hint_x=0.3, color=ACCENT))
             row.add_widget(Label(text=info.get("category", ""), font_size="10sp",
-                                 size_hint_x=0.25, color=TEXT_MUTED))
+                                 size_hint_x=0.25, color=MUTED))
             inv_box.add_widget(row)
         scroll.add_widget(inv_box)
         content.add_widget(scroll)
 
-        add_box = BoxLayout(spacing=6, size_hint_y=None, height=46)
+        add_box = BoxLayout(spacing=6, size_hint_y=None, height=48)
         self._inv_name = self._make_input("Name")
         self._inv_price = self._make_input("Price", input_filter="float")
         self._inv_cat = self._make_input("Category")
@@ -157,18 +169,16 @@ class AdminScreen(Screen):
         add_box.add_widget(self._inv_cat)
         content.add_widget(add_box)
 
-        add_btn = Button(text="+ Add Item", size_hint_y=None, height=40,
-                         background_color=SUCCESS, color=TEXT_PRIMARY,
-                         background_normal="")
+        add_btn = Button(text="+ Add Item", size_hint_y=None, height=44,
+                         background_color=SUCCESS, color=WHITE, background_normal="")
         add_btn.bind(on_release=lambda x: self._do_add_inv())
         content.add_widget(add_btn)
 
         popup = Popup(title="Inventory", content=content, size_hint=(0.95, 0.85),
-                      auto_dismiss=False, background_color=BG_CARD,
-                      title_color=TEXT_PRIMARY, separator_color=BORDER_COLOR)
-        close_btn = Button(text="Close", size_hint_y=None, height=40,
-                           background_color=BG_INPUT, color=TEXT_SECONDARY,
-                           background_normal="")
+                      auto_dismiss=False, background_color=CARD,
+                      title_color=WHITE, separator_color=DIVIDER)
+        close_btn = Button(text="Close", size_hint_y=None, height=44,
+                           background_color=SURFACE, color=MUTED, background_normal="")
         close_btn.bind(on_release=popup.dismiss)
         content.add_widget(close_btn)
         popup.open()
@@ -201,21 +211,21 @@ class AdminScreen(Screen):
         staff_box.bind(minimum_height=staff_box.setter("height"))
         staff = load_json("staff", {"accounts": {}}).get("accounts", {})
         for user, info in sorted(staff.items()):
-            row = BoxLayout(size_hint_y=None, height=36, padding=[6, 2])
+            row = BoxLayout(size_hint_y=None, height=40, padding=[6, 4])
             row.add_widget(Label(text=user, font_size="12sp", halign="left",
                                  text_size=(None, None), size_hint_x=0.25,
-                                 color=TEXT_PRIMARY))
+                                 color=WHITE))
             row.add_widget(Label(text=info.get("display_name", ""), font_size="12sp",
-                                 size_hint_x=0.35, color=TEXT_SECONDARY))
+                                 size_hint_x=0.35, color=MUTED))
             row.add_widget(Label(text=info.get("role", ""), font_size="12sp",
                                  size_hint_x=0.2, color=WARNING))
             staff_box.add_widget(row)
         scroll.add_widget(staff_box)
         content.add_widget(scroll)
 
-        add_box = BoxLayout(spacing=6, size_hint_y=None, height=46)
+        add_box = BoxLayout(spacing=6, size_hint_y=None, height=48)
         self._staff_user = self._make_input("Username")
-        self._staff_name = self._make_input("Name")
+        self._staff_name = self._make_input("Display Name")
         self._staff_pw = self._make_input("Password (min 6)", is_password=True)
         add_box.add_widget(self._staff_user)
         add_box.add_widget(self._staff_name)
@@ -226,19 +236,17 @@ class AdminScreen(Screen):
                                   height=20, color=DANGER)
         content.add_widget(self._staff_error)
 
-        add_btn = Button(text="+ Add Staff", size_hint_y=None, height=40,
-                         background_color=SUCCESS, color=TEXT_PRIMARY,
-                         background_normal="")
+        add_btn = Button(text="+ Add Staff", size_hint_y=None, height=44,
+                         background_color=SUCCESS, color=WHITE, background_normal="")
         add_btn.bind(on_release=lambda x: self._do_add_staff())
         content.add_widget(add_btn)
 
         popup = Popup(title="Staff Management", content=content,
                       size_hint=(0.95, 0.8), auto_dismiss=False,
-                      background_color=BG_CARD, title_color=TEXT_PRIMARY,
-                      separator_color=BORDER_COLOR)
-        close_btn = Button(text="Close", size_hint_y=None, height=40,
-                           background_color=BG_INPUT, color=TEXT_SECONDARY,
-                           background_normal="")
+                      background_color=CARD, title_color=WHITE,
+                      separator_color=DIVIDER)
+        close_btn = Button(text="Close", size_hint_y=None, height=44,
+                           background_color=SURFACE, color=MUTED, background_normal="")
         close_btn.bind(on_release=popup.dismiss)
         content.add_widget(close_btn)
         popup.open()
@@ -267,15 +275,15 @@ class AdminScreen(Screen):
         self._staff_pw.text = ""
 
     def add_stock(self, *args):
-        from backend.stock import get_stock_list, load_stock_movements, save_stock_movements
+        from backend.stock import load_stock_movements, save_stock_movements
         from backend.database import today_key
 
         dk = today_key()
         content = BoxLayout(orientation="vertical", spacing=6, padding=12)
         content.add_widget(Label(text=f"Date: {dk}", size_hint_y=None, height=32,
-                                 color=TEXT_SECONDARY))
+                                 color=MUTED))
 
-        add_box = BoxLayout(spacing=6, size_hint_y=None, height=46)
+        add_box = BoxLayout(spacing=6, size_hint_y=None, height=48)
         self._stock_item = self._make_input("Item")
         self._stock_qty = self._make_input("Qty", input_filter="int")
         add_box.add_widget(self._stock_item)
@@ -288,19 +296,17 @@ class AdminScreen(Screen):
         scroll.add_widget(self._stock_entries_box)
         content.add_widget(scroll)
 
-        add_entry_btn = Button(text="+ Add Entry", size_hint_y=None, height=36,
-                               background_color=ORANGE, color=TEXT_PRIMARY,
-                               background_normal="")
+        add_entry_btn = Button(text="+ Add Entry", size_hint_y=None, height=40,
+                               background_color=ORANGE, color=WHITE, background_normal="")
         add_entry_btn.bind(on_release=lambda x: self._add_stock_entry())
         content.add_widget(add_entry_btn)
 
         popup = Popup(title="Add Stock", content=content, size_hint=(0.95, 0.8),
-                      auto_dismiss=False, background_color=BG_CARD,
-                      title_color=TEXT_PRIMARY, separator_color=BORDER_COLOR)
+                      auto_dismiss=False, background_color=CARD,
+                      title_color=WHITE, separator_color=DIVIDER)
 
-        save_btn = Button(text="Save All", size_hint_y=None, height=40,
-                          background_color=SUCCESS, color=TEXT_PRIMARY,
-                          background_normal="")
+        save_btn = Button(text="Save All", size_hint_y=None, height=44,
+                          background_color=SUCCESS, color=WHITE, background_normal="")
         save_btn.bind(on_release=lambda x: (self._save_stock_entries(dk), popup.dismiss()))
         content.add_widget(save_btn)
         popup.open()
@@ -315,11 +321,11 @@ class AdminScreen(Screen):
                 return
         except ValueError:
             return
-        row = BoxLayout(size_hint_y=None, height=30)
+        row = BoxLayout(size_hint_y=None, height=32)
         row.add_widget(Label(text=f"{name}: {qty}", font_size="12sp", halign="left",
-                             text_size=(None, None), color=TEXT_PRIMARY))
+                             text_size=(None, None), color=WHITE))
         self._stock_entries_box.add_widget(row)
-        self._stock_entries_box.height += 30
+        self._stock_entries_box.height += 32
         self._stock_item.text = ""
         self._stock_qty.text = ""
         self._last_stock_entries = getattr(self, '_last_stock_entries', [])
@@ -344,7 +350,7 @@ class AdminScreen(Screen):
         remaining = calc_remaining_stock(dk)
         content = BoxLayout(orientation="vertical", spacing=4, padding=12)
         content.add_widget(Label(text="Enter closing stock counts",
-                                 size_hint_y=None, height=28, color=TEXT_SECONDARY))
+                                 size_hint_y=None, height=28, color=MUTED))
 
         self._take_fields = {}
         scroll = ScrollView()
@@ -352,16 +358,16 @@ class AdminScreen(Screen):
         fields_box.bind(minimum_height=fields_box.setter("height"))
         for name in sorted(get_stock_list().keys()):
             exp = remaining.get(name, 0)
-            row = BoxLayout(size_hint_y=None, height=38, spacing=4)
+            row = BoxLayout(size_hint_y=None, height=40, spacing=4)
             row.add_widget(Label(text=name, font_size="11sp", halign="left",
                                  text_size=(None, None), size_hint_x=0.55,
-                                 color=TEXT_PRIMARY))
+                                 color=WHITE))
             field = TextInput(
                 hint_text=f"exp: {exp}", input_filter="int",
                 font_size="13sp", multiline=False, size_hint_x=0.3,
-                background_color=BG_INPUT, background_normal="",
-                foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
-                hint_text_color=TEXT_MUTED, padding=[8, 8],
+                background_color=INPUT_BG, background_normal="",
+                foreground_color=WHITE, cursor_color=ACCENT,
+                hint_text_color=HINT, padding=[8, 8],
             )
             self._take_fields[name] = field
             row.add_widget(field)
@@ -371,17 +377,15 @@ class AdminScreen(Screen):
 
         popup = Popup(title=f"Stock Taking - {dk}", content=content,
                       size_hint=(0.95, 0.85), auto_dismiss=False,
-                      background_color=BG_CARD, title_color=TEXT_PRIMARY,
-                      separator_color=BORDER_COLOR)
-        save_btn = Button(text="Save", size_hint_y=None, height=40,
-                          background_color=SUCCESS, color=TEXT_PRIMARY,
-                          background_normal="")
+                      background_color=CARD, title_color=WHITE,
+                      separator_color=DIVIDER)
+        save_btn = Button(text="Save", size_hint_y=None, height=44,
+                          background_color=SUCCESS, color=WHITE, background_normal="")
         save_btn.bind(on_release=lambda x: (self._save_stock_take(dk), popup.dismiss()))
-        cancel_btn = Button(text="Cancel", size_hint_y=None, height=40,
-                            background_color=BG_INPUT, color=TEXT_SECONDARY,
-                            background_normal="")
+        cancel_btn = Button(text="Cancel", size_hint_y=None, height=44,
+                            background_color=SURFACE, color=MUTED, background_normal="")
         cancel_btn.bind(on_release=popup.dismiss)
-        btn_box = BoxLayout(spacing=6, size_hint_y=None, height=44)
+        btn_box = BoxLayout(spacing=6, size_hint_y=None, height=48)
         btn_box.add_widget(cancel_btn)
         btn_box.add_widget(save_btn)
         content.add_widget(btn_box)
@@ -401,26 +405,26 @@ class AdminScreen(Screen):
         self._log_audit(f"Saved stock take for {dk}")
 
     def edit_prices(self, *args):
-        from backend.stock import get_stock_list, set_stock_item
+        from backend.stock import get_stock_list
 
         content = BoxLayout(orientation="vertical", spacing=4, padding=12)
         content.add_widget(Label(text="Enter new prices", size_hint_y=None,
-                                 height=28, color=TEXT_SECONDARY))
+                                 height=28, color=MUTED))
 
         self._price_fields = {}
         scroll = ScrollView()
         prices_box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=2)
         prices_box.bind(minimum_height=prices_box.setter("height"))
         for name, info in sorted(get_stock_list().items()):
-            row = BoxLayout(size_hint_y=None, height=38, spacing=4)
+            row = BoxLayout(size_hint_y=None, height=40, spacing=4)
             row.add_widget(Label(text=name, font_size="11sp", halign="left",
                                  text_size=(None, None), size_hint_x=0.55,
-                                 color=TEXT_PRIMARY))
+                                 color=WHITE))
             field = TextInput(
                 text=str(int(info["price"])), input_filter="float",
                 font_size="13sp", multiline=False, size_hint_x=0.3,
-                background_color=BG_INPUT, background_normal="",
-                foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
+                background_color=INPUT_BG, background_normal="",
+                foreground_color=WHITE, cursor_color=ACCENT,
                 padding=[8, 8],
             )
             self._price_fields[name] = field
@@ -430,17 +434,15 @@ class AdminScreen(Screen):
         content.add_widget(scroll)
 
         popup = Popup(title="Edit Prices", content=content, size_hint=(0.95, 0.85),
-                      auto_dismiss=False, background_color=BG_CARD,
-                      title_color=TEXT_PRIMARY, separator_color=BORDER_COLOR)
-        save_btn = Button(text="Save", size_hint_y=None, height=40,
-                          background_color=SUCCESS, color=TEXT_PRIMARY,
-                          background_normal="")
+                      auto_dismiss=False, background_color=CARD,
+                      title_color=WHITE, separator_color=DIVIDER)
+        save_btn = Button(text="Save", size_hint_y=None, height=44,
+                          background_color=SUCCESS, color=WHITE, background_normal="")
         save_btn.bind(on_release=lambda x: (self._save_prices(), popup.dismiss()))
-        cancel_btn = Button(text="Cancel", size_hint_y=None, height=40,
-                            background_color=BG_INPUT, color=TEXT_SECONDARY,
-                            background_normal="")
+        cancel_btn = Button(text="Cancel", size_hint_y=None, height=44,
+                            background_color=SURFACE, color=MUTED, background_normal="")
         cancel_btn.bind(on_release=popup.dismiss)
-        btn_box = BoxLayout(spacing=6, size_hint_y=None, height=44)
+        btn_box = BoxLayout(spacing=6, size_hint_y=None, height=48)
         btn_box.add_widget(cancel_btn)
         btn_box.add_widget(save_btn)
         content.add_widget(btn_box)
@@ -467,14 +469,14 @@ class AdminScreen(Screen):
         ))
         content.add_widget(Label(
             text="Enter admin password to confirm:",
-            font_size="13sp", halign="center", color=TEXT_SECONDARY,
+            font_size="13sp", halign="center", color=MUTED,
         ))
         self._reset_pw = TextInput(
             hint_text="Admin password", password=True,
             size_hint_y=None, height=44, multiline=False, font_size="14sp",
-            background_color=BG_INPUT, background_normal="",
-            foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
-            hint_text_color=TEXT_MUTED, padding=[12, 10],
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[12, 10],
         )
         content.add_widget(self._reset_pw)
         self._reset_error = Label(
@@ -482,17 +484,17 @@ class AdminScreen(Screen):
         )
         content.add_widget(self._reset_error)
         btn_box = BoxLayout(spacing=10, size_hint_y=None, height=48)
-        cancel_btn = Button(text="Cancel", background_color=BG_INPUT,
-                            color=TEXT_SECONDARY, background_normal="")
-        reset_btn = Button(text="RESET", background_color=DANGER,
-                           color=TEXT_PRIMARY, background_normal="")
+        cancel_btn = Button(text="Cancel", background_color=SURFACE,
+                            color=MUTED, background_normal="")
+        reset_btn = Button(text="RESET ALL", background_color=DANGER,
+                           color=WHITE, background_normal="")
         btn_box.add_widget(cancel_btn)
         btn_box.add_widget(reset_btn)
         content.add_widget(btn_box)
 
         popup = Popup(title="Reset All Data?", content=content, size_hint=(0.85, 0.6),
-                      auto_dismiss=False, background_color=BG_CARD,
-                      title_color=DANGER, separator_color=BORDER_COLOR)
+                      auto_dismiss=False, background_color=CARD,
+                      title_color=DANGER, separator_color=DIVIDER)
         cancel_btn.bind(on_release=popup.dismiss)
         reset_btn.bind(on_release=lambda x: self._verify_and_reset(popup))
         popup.open()
@@ -522,9 +524,9 @@ class AdminScreen(Screen):
         save_json("staff", {
             "accounts": {
                 "admin": {
-                    "password_hash": hash_pw("CHANGE_ME_NOW"),
+                    "password_hash": hash_pw("changeme"),
                     "role": "admin",
-                    "display_name": "Administrator",
+                    "display_name": "Admin",
                 }
             }
         })

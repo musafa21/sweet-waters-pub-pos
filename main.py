@@ -16,6 +16,9 @@ from screens.pos import POSScreen
 from screens.report import ReportScreen
 from screens.debts import DebtScreen
 from screens.admin import AdminScreen
+from backend.database import seed_default_staff
+
+seed_default_staff()
 
 if platform != "android":
     Window.size = (400, 700)

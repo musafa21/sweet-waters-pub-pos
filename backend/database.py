@@ -172,3 +172,16 @@ class SessionManager:
         return self._user is not None and not self.is_expired()
 
 session = SessionManager()
+
+def seed_default_staff():
+    staff = load_json("staff", None)
+    if staff is None or not staff.get("accounts"):
+        save_json("staff", {
+            "accounts": {
+                "admin": {
+                    "password_hash": hash_pw("changeme"),
+                    "role": "admin",
+                    "display_name": "Admin",
+                }
+            }
+        })
