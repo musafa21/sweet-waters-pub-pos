@@ -8,6 +8,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle
+from kivy.animation import Animation
 
 BG = (0.07, 0.07, 0.14, 1)
 CARD = (0.12, 0.12, 0.20, 1)
@@ -22,6 +23,9 @@ WHITE = (1, 1, 1, 1)
 MUTED = (0.5, 0.5, 0.6, 1)
 HINT = (0.4, 0.4, 0.5, 1)
 DIVIDER = (0.2, 0.2, 0.3, 1)
+NAV_BG = (0.09, 0.09, 0.16, 1)
+NAV_ACTIVE = (0.42, 0.28, 0.82, 1)
+NAV_INACTIVE = (0.4, 0.4, 0.5, 1)
 
 CATEGORY_ICONS = {
     "Beers & Lagers": "\U0001f37a",
@@ -32,6 +36,17 @@ CATEGORY_ICONS = {
     "Wines": "\U0001f377",
     "Water & Soft Drinks": "\U0001f9c4",
     "Other": "\U0001f37d\ufe0f",
+}
+
+CATEGORY_SHORT = {
+    "Beers & Lagers": "Beer",
+    "Rum & Spirits": "Rum",
+    "Whiskey": "Whiskey",
+    "Gin": "Gin",
+    "Vodka": "Vodka",
+    "Wines": "Wine",
+    "Water & Soft Drinks": "Drinks",
+    "Other": "Other",
 }
 
 
@@ -82,13 +97,14 @@ class POSScreen(Screen):
         self._build_items_area()
         self._build_cart_bar()
         self._build_cart_overlay()
+        self._build_bottom_nav()
 
         self.add_widget(self.root_box)
         Clock.schedule_once(lambda dt: self._load_data(), 0.1)
 
     def _build_top_bar(self):
         bar = BoxLayout(
-            size_hint_y=None, height=56,
+            size_hint_y=None, height=50,
             padding=[14, 0, 14, 0], spacing=8,
         )
         with bar.canvas.before:
@@ -99,8 +115,8 @@ class POSScreen(Screen):
 
         bar.add_widget(Label(
             text="Sweet Waters",
-            font_size="18sp", color=WHITE, bold=True,
-            size_hint_x=0.40,
+            font_size="17sp", color=WHITE, bold=True,
+            size_hint_x=0.55,
         ))
 
         self.user_label = Label(
@@ -109,26 +125,19 @@ class POSScreen(Screen):
         )
         bar.add_widget(self.user_label)
 
-        btn_box = BoxLayout(spacing=4, size_hint_x=0.35)
-        for text, action, color in [
-            ("\U0001f4ca", self._goto_report, (0.18, 0.4, 0.7, 1)),
-            ("\U0001f4b5", self._goto_debts, (0.75, 0.25, 0.25, 1)),
-            ("\u2699\ufe0f", self._goto_admin, (0.35, 0.38, 0.42, 1)),
-        ]:
-            btn = Button(
-                text=text, font_size="18sp",
-                background_color=color, color=WHITE,
-                size_hint_x=0.33, background_normal="",
-            )
-            btn.bind(on_release=action)
-            btn_box.add_widget(btn)
-        bar.add_widget(btn_box)
+        self.sales_label = Label(
+            text="", font_size="11sp", color=SUCCESS,
+            size_hint_x=0.20, halign="right",
+        )
+        self.sales_label.bind(size=self.sales_label.setter("text_size"))
+        bar.add_widget(self.sales_label)
+
         self.root_box.add_widget(bar)
 
     def _build_search(self):
         self.search_input = TextInput(
             hint_text="  \U0001f50d  Search drinks...",
-            size_hint_y=None, height=46,
+            size_hint_y=None, height=44,
             multiline=False, font_size="15sp",
             background_color=INPUT_BG, background_normal="",
             foreground_color=WHITE, cursor_color=ACCENT,
@@ -139,12 +148,12 @@ class POSScreen(Screen):
 
     def _build_categories(self):
         self.cat_scroll = ScrollView(
-            size_hint_y=None, height=44,
+            size_hint_y=None, height=52,
             do_scroll_x=True, do_scroll_y=False,
             bar_color=(0.3, 0.3, 0.4, 0.5),
         )
         self.cat_box = BoxLayout(
-            size_hint_y=None, height=40,
+            size_hint_y=None, height=48,
             size_hint_x=None, spacing=6,
             padding=[8, 4, 8, 4],
         )
@@ -166,8 +175,8 @@ class POSScreen(Screen):
 
     def _build_cart_bar(self):
         self.cart_bar = BoxLayout(
-            size_hint_y=None, height=64,
-            padding=[16, 8, 16, 8], spacing=12,
+            size_hint_y=None, height=60,
+            padding=[14, 6, 14, 6], spacing=10,
         )
         with self.cart_bar.canvas.before:
             Color(*CARD)
@@ -180,18 +189,18 @@ class POSScreen(Screen):
         self.cart_bar.bind(pos=self._update_cart_bar_bg, size=self._update_cart_bar_bg)
 
         self.cart_icon = Label(
-            text="\U0001f6d2", font_size="24sp", size_hint_x=0.12,
+            text="\U0001f6d2", font_size="22sp", size_hint_x=0.10,
         )
         self.cart_bar.add_widget(self.cart_icon)
 
-        info = BoxLayout(orientation="vertical", size_hint_x=0.50)
+        info = BoxLayout(orientation="vertical", size_hint_x=0.48)
         self.cart_count_label = Label(
-            text="Cart empty", font_size="13sp", color=MUTED,
+            text="Cart empty", font_size="12sp", color=MUTED,
             size_hint_y=0.5, halign="left",
         )
         self.cart_count_label.bind(size=self.cart_count_label.setter("text_size"))
         self.cart_total_label = Label(
-            text="KES 0", font_size="16sp", color=WHITE, bold=True,
+            text="KES 0", font_size="15sp", color=WHITE, bold=True,
             size_hint_y=0.5, halign="left",
         )
         self.cart_total_label.bind(size=self.cart_total_label.setter("text_size"))
@@ -200,9 +209,9 @@ class POSScreen(Screen):
         self.cart_bar.add_widget(info)
 
         self.checkout_btn = Button(
-            text="CHECKOUT", font_size="14sp", bold=True,
+            text="CHECKOUT", font_size="13sp", bold=True,
             background_color=SUCCESS, color=WHITE,
-            size_hint_x=0.30, background_normal="",
+            size_hint_x=0.32, background_normal="",
         )
         self.checkout_btn.bind(on_release=self._checkout)
         self.cart_bar.add_widget(self.checkout_btn)
@@ -216,12 +225,12 @@ class POSScreen(Screen):
             opacity=0,
         )
         with self.cart_overlay.canvas.before:
-            Color(0, 0, 0, 0.7)
+            Color(0, 0, 0, 0.75)
             self._overlay_bg = Rectangle(pos=self.cart_overlay.pos, size=self.cart_overlay.size)
         self.cart_overlay.bind(pos=self._update_overlay_bg, size=self._update_overlay_bg)
 
         overlay_card = BoxLayout(
-            orientation="vertical", size_hint=(0.95, 0.88),
+            orientation="vertical", size_hint=(0.95, 0.90),
             pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
         with overlay_card.canvas.before:
@@ -231,17 +240,18 @@ class POSScreen(Screen):
             )
         overlay_card.bind(pos=self._update_overlay_card, size=self._update_overlay_card)
 
-        oh_header = BoxLayout(size_hint_y=None, height=56, padding=[16, 0, 16, 0])
+        oh_header = BoxLayout(size_hint_y=None, height=52, padding=[16, 0, 16, 0])
         oh_header.add_widget(Label(
             text="\U0001f6d2  Your Order",
-            font_size="18sp", color=WHITE, bold=True, halign="left",
+            font_size="17sp", color=WHITE, bold=True, halign="left",
+            size_hint_x=0.6,
         ))
         self.overlay_count = Label(
-            text="0 items", font_size="13sp", color=MUTED,
+            text="0 items", font_size="12sp", color=MUTED, size_hint_x=0.25,
         )
         oh_header.add_widget(self.overlay_count)
         close_btn = Button(
-            text="\u2715", font_size="20sp", size_hint_x=None, width=44,
+            text="\u2715", font_size="18sp", size_hint_x=None, width=44,
             background_color=DANGER, color=WHITE, background_normal="",
         )
         close_btn.bind(on_release=lambda x: self._collapse_cart())
@@ -258,22 +268,22 @@ class POSScreen(Screen):
         overlay_card.add_widget(cart_scroll)
 
         oh_footer = BoxLayout(
-            orientation="vertical", size_hint_y=None, height=130,
-            spacing=8, padding=[16, 8, 16, 8],
+            orientation="vertical", size_hint_y=None, height=170,
+            spacing=6, padding=[16, 6, 16, 6],
         )
 
         self.overlay_total = Label(
-            text="TOTAL: KES 0", font_size="22sp", color=WHITE, bold=True,
-            size_hint_y=None, height=40,
+            text="TOTAL: KES 0", font_size="20sp", color=WHITE, bold=True,
+            size_hint_y=None, height=36,
         )
         oh_footer.add_widget(self.overlay_total)
 
-        pay_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
+        pay_box = BoxLayout(spacing=6, size_hint_y=None, height=40)
         self._pay_method = "cash"
         self._method_btns = {}
         for m, lbl in [("cash", "\U0001f4b5 Cash"), ("mpesa", "\U0001f4f1 M-Pesa"), ("credit", "\U0001f4b3 Credit")]:
             btn = Button(
-                text=lbl, font_size="12sp",
+                text=lbl, font_size="11sp",
                 background_color=SUCCESS if m == "cash" else SURFACE,
                 color=WHITE, background_normal="",
             )
@@ -283,14 +293,36 @@ class POSScreen(Screen):
             pay_box.add_widget(btn)
         oh_footer.add_widget(pay_box)
 
-        action_box = BoxLayout(spacing=8, size_hint_y=None, height=48)
+        cash_row = BoxLayout(spacing=6, size_hint_y=None, height=44)
+        cash_row.add_widget(Label(
+            text="Cash Received:", font_size="12sp", color=MUTED,
+            size_hint_x=0.35,
+        ))
+        self._cash_received_input = TextInput(
+            text="", hint_text="Amount tendered",
+            input_filter="float", font_size="16sp",
+            size_hint_x=0.40, multiline=False,
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[10, 8],
+        )
+        self._cash_received_input.bind(text=self._on_cash_changed)
+        cash_row.add_widget(self._cash_received_input)
+        self._change_label = Label(
+            text="Change: KES 0", font_size="13sp", color=SUCCESS,
+            size_hint_x=0.25,
+        )
+        cash_row.add_widget(self._change_label)
+        oh_footer.add_widget(cash_row)
+
+        action_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
         self._clear_overlay_btn = Button(
-            text="Clear Cart", font_size="13sp",
+            text="Clear Cart", font_size="12sp",
             background_color=DANGER, color=WHITE, background_normal="",
         )
         self._clear_overlay_btn.bind(on_release=lambda x: self._clear_cart())
         self._confirm_pay_btn = Button(
-            text="CONFIRM PAYMENT", font_size="14sp", bold=True,
+            text="CONFIRM PAYMENT", font_size="13sp", bold=True,
             background_color=SUCCESS, color=WHITE, background_normal="",
         )
         self._confirm_pay_btn.bind(on_release=lambda x: self._confirm_payment())
@@ -301,6 +333,42 @@ class POSScreen(Screen):
         overlay_card.add_widget(oh_footer)
         self.cart_overlay.add_widget(overlay_card)
         self.root_box.add_widget(self.cart_overlay)
+
+    def _build_bottom_nav(self):
+        nav = BoxLayout(
+            size_hint_y=None, height=56,
+            padding=[4, 2, 4, 2],
+        )
+        with nav.canvas.before:
+            Color(*NAV_BG)
+            nav._bg = Rectangle(pos=nav.pos, size=nav.size)
+            Color(*DIVIDER)
+            nav._line = Rectangle(
+                pos=(nav.x, nav.y + nav.height - 1),
+                size=(nav.width, 1),
+            )
+        nav.bind(pos=self._update_nav_bg, size=self._update_nav_bg)
+
+        self._nav_btns = []
+        nav_items = [
+            ("\U0001f37a  POS", "pos"),
+            ("\U0001f4ca  Report", "report"),
+            ("\U0001f4b5  Debts", "debts"),
+            ("\u2699\ufe0f  Admin", "admin"),
+        ]
+        for label, screen_name in nav_items:
+            btn = Button(
+                text=label, font_size="10sp",
+                background_color=NAV_BG, color=NAV_INACTIVE,
+                background_normal="",
+            )
+            btn.screen_name = screen_name
+            btn.bind(on_release=lambda x: self._nav_to(x.screen_name))
+            nav.add_widget(btn)
+            self._nav_btns.append((screen_name, btn))
+
+        self._highlight_nav("pos")
+        self.root_box.add_widget(nav)
 
     def _update_bg(self, *args):
         self._bg.pos = self.root_box.pos
@@ -321,6 +389,30 @@ class POSScreen(Screen):
         self._overlay_card_bg.pos = card.pos
         self._overlay_card_bg.size = card.size
 
+    def _update_nav_bg(self, *args):
+        nav = self.root_box.children[0]
+        nav._bg.pos = nav.pos
+        nav._bg.size = nav.size
+        nav._line.pos = (nav.x, nav.y + nav.height - 1)
+        nav._line.size = (nav.width, 1)
+
+    def _nav_to(self, screen_name):
+        self._touch_session()
+        from backend.database import session
+        user = session.get_user()
+        if screen_name == "admin" and (not user or user["role"] != "admin"):
+            return
+        self.manager.current = screen_name
+
+    def _highlight_nav(self, active):
+        for sn, btn in self._nav_btns:
+            if sn == active:
+                btn.color = WHITE
+                btn.background_color = NAV_ACTIVE
+            else:
+                btn.color = NAV_INACTIVE
+                btn.background_color = NAV_BG
+
     def _on_cart_bar_touch(self, touch):
         if self.cart_bar.collide_point(*touch.pos) and not self._cart_expanded:
             if self.cart:
@@ -331,11 +423,27 @@ class POSScreen(Screen):
     def _expand_cart(self):
         self._cart_expanded = True
         self.cart_overlay.opacity = 1
+        total = sum(q * p for _, q, p in self.cart)
+        self._cash_received_input.text = str(int(total))
         self._refresh_cart_overlay()
 
     def _collapse_cart(self):
         self._cart_expanded = False
         self.cart_overlay.opacity = 0
+
+    def _on_cash_changed(self, instance, text):
+        total = sum(q * p for _, q, p in self.cart)
+        try:
+            received = float(text) if text else 0
+        except ValueError:
+            received = 0
+        change = received - total
+        if change >= 0:
+            self._change_label.text = f"Change: KES {change:,.0f}"
+            self._change_label.color = SUCCESS
+        else:
+            self._change_label.text = f"Short: KES {abs(change):,.0f}"
+            self._change_label.color = DANGER
 
     def _load_data(self):
         from backend.stock import get_categories, get_stock_list
@@ -343,16 +451,27 @@ class POSScreen(Screen):
         self.categories = get_categories()
         self._build_category_buttons()
         self._refresh_items()
+        self._update_today_sales()
+
+    def _update_today_sales(self):
+        try:
+            from backend.database import today_key
+            from backend.sales import load_sales
+            sales = load_sales(today_key())
+            total = sales.get("total_revenue", 0)
+            self.sales_label.text = f"Today: KES {total:,.0f}"
+        except Exception:
+            self.sales_label.text = ""
 
     def _update_user_label(self):
         if self.app and self.app.current_user:
             u = self.app.current_user
-            self.user_label.text = f"{u['display_name']}"
+            self.user_label.text = u['display_name']
 
     def _build_category_buttons(self):
         self.cat_box.clear_widgets()
         all_btn = Button(
-            text="All", font_size="12sp", size_hint_x=None, width=56,
+            text="All", font_size="11sp", size_hint_x=None, width=56,
             background_color=ACCENT, color=WHITE, background_normal="",
         )
         all_btn.bind(on_release=lambda x: self._select_category("All"))
@@ -360,33 +479,58 @@ class POSScreen(Screen):
 
         for cat_name in sorted(self.categories.keys()):
             icon = CATEGORY_ICONS.get(cat_name, "\U0001f37d\ufe0f")
-            btn = Button(
-                text=f"{icon}", font_size="18sp",
-                size_hint_x=None, width=50,
-                background_color=SURFACE, color=WHITE, background_normal="",
+            short = CATEGORY_SHORT.get(cat_name, cat_name[:6])
+            btn = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=62,
+                spacing=1,
             )
+            with btn.canvas.before:
+                Color(*SURFACE)
+                btn._bg = RoundedRectangle(pos=btn.pos, size=btn.size, radius=[10])
+            btn.bind(pos=lambda b, *_: b._bg.__setattr__("pos", b.pos))
+            btn.bind(size=lambda b, *_: b._bg.__setattr__("size", b.size))
+
+            icon_lbl = Label(text=icon, font_size="20sp", size_hint_y=0.55, color=WHITE)
+            text_lbl = Label(text=short, font_size="8sp", size_hint_y=0.45, color=MUTED)
+            btn.add_widget(icon_lbl)
+            btn.add_widget(text_lbl)
+
             btn.cat_name = cat_name
-            btn.bind(on_release=lambda x: self._select_category(x.cat_name))
-            btn.bind(on_touch_down=lambda b, t, cn=cat_name: self._show_cat_tooltip(b, t, cn))
+            btn.bind(on_touch_down=lambda b, t, cn=cat_name: self._on_cat_touch(b, t, cn))
             self.cat_box.add_widget(btn)
+
         self._highlight_category()
 
-    def _show_cat_tooltip(self, btn, touch, cat_name):
-        pass
+    def _on_cat_touch(self, btn, touch, cat_name):
+        if btn.collide_point(*touch.pos):
+            self._select_category(cat_name)
+            return True
+        return False
 
     def _highlight_category(self):
         for child in self.cat_box.children:
-            if hasattr(child, 'text') and child.text in ("All",) or (hasattr(child, 'cat_name') if hasattr(child, 'cat_name') else False):
-                pass
-        for child in self.cat_box.children:
-            text = child.text if hasattr(child, 'text') else ""
             cat = getattr(child, 'cat_name', None)
-            if text == "All" and self.current_category == "All":
-                child.background_color = ACCENT
-            elif cat == self.current_category:
-                child.background_color = ACCENT
+            text = child.text if hasattr(child, 'text') else ""
+            is_active = (text == "All" and self.current_category == "All") or cat == self.current_category
+            if hasattr(child, '_bg'):
+                child.children[0].color = WHITE if is_active else MUTED
+                child.children[1].color = WHITE if is_active else MUTED
+            if is_active:
+                if hasattr(child, 'background_color'):
+                    child.background_color = ACCENT
+                elif hasattr(child, '_bg'):
+                    child.canvas.before.clear()
+                    with child.canvas.before:
+                        Color(*ACCENT)
+                        child._bg = RoundedRectangle(pos=child.pos, size=child.size, radius=[10])
             else:
-                child.background_color = SURFACE
+                if hasattr(child, 'background_color') and text == "All":
+                    child.background_color = SURFACE
+                elif hasattr(child, '_bg'):
+                    child.canvas.before.clear()
+                    with child.canvas.before:
+                        Color(*SURFACE)
+                        child._bg = RoundedRectangle(pos=child.pos, size=child.size, radius=[10])
 
     def _select_category(self, cat_name):
         self.current_category = cat_name
@@ -437,19 +581,14 @@ class POSScreen(Screen):
             with cell.canvas.before:
                 Color(*(0.14, 0.14, 0.24, 1))
                 cell._bg = RoundedRectangle(pos=cell.pos, size=cell.size, radius=[12])
-                Color(*(ACCENT[0], ACCENT[1], ACCENT[2], 0.0))
-                cell._border = RoundedRectangle(
-                    pos=(cell.x, cell.y), size=cell.size, radius=[12],
-                )
-            cell.bind(pos=lambda c, *_: (setattr(c._bg, 'pos', c.pos), setattr(c._border, 'pos', (c.x, c.y))))
-            cell.bind(size=lambda c, *_: (setattr(c._bg, 'size', c.size), setattr(c._border, 'size', c.size)))
+            cell.bind(pos=lambda c, *_: c._bg.__setattr__("pos", c.pos))
+            cell.bind(size=lambda c, *_: c._bg.__setattr__("size", c.size))
 
             cell.add_widget(Label(
-                text=icon, font_size="28sp", size_hint_y=0.40,
-                color=WHITE,
+                text=icon, font_size="26sp", size_hint_y=0.38, color=WHITE,
             ))
             cell.add_widget(Label(
-                text=name, font_size="10sp", size_hint_y=0.30,
+                text=name, font_size="10sp", size_hint_y=0.32,
                 color=WHITE, halign="center", shorten=True,
                 shorten_from="right", text_size=(None, None),
             ))
@@ -473,8 +612,23 @@ class POSScreen(Screen):
     def _on_item_touch(self, cell, touch, name):
         if cell.collide_point(*touch.pos):
             self._add_to_cart(name)
+            anim = Animation(background_color=(0.3, 0.7, 0.5, 1), duration=0.08) + \
+                   Animation(background_color=(0.14, 0.14, 0.24, 1), duration=0.15)
+            cell.canvas.before.clear()
+            with cell.canvas.before:
+                Color(*(0.3, 0.7, 0.5, 1))
+                cell._flash = RoundedRectangle(pos=cell.pos, size=cell.size, radius=[12])
+            cell.bind(pos=lambda c, *_: setattr(c._flash, 'pos', c.pos) if hasattr(c, '_flash') else None)
+            cell.bind(size=lambda c, *_: setattr(c._flash, 'size', c.size) if hasattr(c, '_flash') else None)
+            Clock.schedule_once(lambda dt: self._restore_cell(cell), 0.25)
             return True
         return False
+
+    def _restore_cell(self, cell):
+        cell.canvas.before.clear()
+        with cell.canvas.before:
+            Color(*(0.14, 0.14, 0.24, 1))
+            cell._bg = RoundedRectangle(pos=cell.pos, size=cell.size, radius=[12])
 
     def _add_to_cart(self, name):
         self._touch_session()
@@ -539,12 +693,25 @@ class POSScreen(Screen):
         self.overlay_count.text = f"{count} item{'s' if count != 1 else ''}"
         self.overlay_total.text = f"TOTAL: KES {total:,.0f}"
 
+        if self._pay_method == "cash":
+            try:
+                received = float(self._cash_received_input.text) if self._cash_received_input.text else 0
+            except ValueError:
+                received = 0
+            change = received - total
+            if change >= 0:
+                self._change_label.text = f"Change: KES {change:,.0f}"
+                self._change_label.color = SUCCESS
+            else:
+                self._change_label.text = f"Short: KES {abs(change):,.0f}"
+                self._change_label.color = DANGER
+
         self.cart_items_box.clear_widgets()
         self.cart_items_box.height = 0
 
         for name, qty, price in self.cart:
             row = BoxLayout(
-                orientation="horizontal", size_hint_y=None, height=52,
+                orientation="horizontal", size_hint_y=None, height=48,
                 spacing=8, padding=[8, 4, 8, 4],
             )
             with row.canvas.before:
@@ -555,14 +722,12 @@ class POSScreen(Screen):
 
             info = BoxLayout(orientation="vertical", size_hint_x=0.50)
             info.add_widget(Label(
-                text=name, font_size="13sp", color=WHITE,
-                halign="left", text_size=(None, None),
-                size_hint_y=0.55,
+                text=name, font_size="12sp", color=WHITE,
+                halign="left", text_size=(None, None), size_hint_y=0.55,
             ))
             info.add_widget(Label(
                 text=f"KES {price:,.0f} each", font_size="10sp", color=MUTED,
-                halign="left", text_size=(None, None),
-                size_hint_y=0.45,
+                halign="left", text_size=(None, None), size_hint_y=0.45,
             ))
             row.add_widget(info)
 
@@ -575,7 +740,7 @@ class POSScreen(Screen):
             row.add_widget(minus)
 
             row.add_widget(Label(
-                text=str(qty), font_size="16sp", color=WHITE,
+                text=str(qty), font_size="15sp", color=WHITE,
                 size_hint_x=None, width=36,
             ))
 
@@ -588,12 +753,20 @@ class POSScreen(Screen):
 
             self.cart_items_box.add_widget(row)
 
-        self.cart_items_box.height = len(self.cart) * 56
+        self.cart_items_box.height = len(self.cart) * 52
 
     def _select_method(self, method):
         self._pay_method = method
         for m, btn in self._method_btns.items():
             btn.background_color = SUCCESS if m == method else SURFACE
+        total = sum(q * p for _, q, p in self.cart)
+        if method == "cash":
+            self._cash_received_input.opacity = 1
+            self._change_label.opacity = 1
+            self._cash_received_input.text = str(int(total))
+        else:
+            self._cash_received_input.opacity = 0
+            self._change_label.opacity = 0
 
     def _checkout(self, *args):
         self._touch_session()
@@ -623,9 +796,18 @@ class POSScreen(Screen):
             "payment_method": method,
             "cashier": session.get_user()["display_name"],
         }
+
         if method == "cash":
-            txn["cash_received"] = total
-            txn["change"] = 0
+            try:
+                received = float(self._cash_received_input.text) if self._cash_received_input.text else 0
+            except ValueError:
+                received = 0
+            if received < total:
+                self._change_label.text = "Insufficient cash!"
+                self._change_label.color = DANGER
+                return
+            txn["cash_received"] = received
+            txn["change"] = received - total
         elif method == "mpesa":
             txn["mpesa_amount"] = total
         elif method == "credit":
@@ -662,11 +844,59 @@ class POSScreen(Screen):
             return
 
         record_sale(dk, txn)
+        self._show_receipt(dk, txn)
         self.cart.clear()
         self._refresh_cart_bar()
         self._collapse_cart()
         self._refresh_items()
+        self._update_today_sales()
         session.touch()
+
+    def _show_receipt(self, dk, txn):
+        content = BoxLayout(orientation="vertical", spacing=8, padding=16)
+        content.add_widget(Label(
+            text="SWEET WATERS PUB",
+            font_size="16sp", color=WHITE, bold=True,
+        ))
+        content.add_widget(Label(
+            text=f"Date: {dk}  Time: {txn.get('time', '')}",
+            font_size="11sp", color=MUTED,
+        ))
+        content.add_widget(Label(
+            text=f"Cashier: {txn.get('cashier', '')}",
+            font_size="11sp", color=MUTED,
+        ))
+
+        items_str = "\n".join(f"  {n} x{q}" for n, q in txn.get("items", {}).items())
+        content.add_widget(Label(
+            text=items_str, font_size="12sp", color=WHITE,
+            halign="left", text_size=(260, None),
+            size_hint_y=None, height=max(40, len(txn.get("items", {})) * 18),
+        ))
+
+        method = txn.get("payment_method", "cash").upper()
+        content.add_widget(Label(
+            text=f"Method: {method}",
+            font_size="12sp", color=GOLD,
+        ))
+        content.add_widget(Label(
+            text=f"TOTAL: KES {txn.get('total', 0):,.0f}",
+            font_size="18sp", color=WHITE, bold=True,
+        ))
+        if method == "CASH":
+            content.add_widget(Label(
+                text=f"Received: KES {txn.get('cash_received', 0):,.0f}  |  Change: KES {txn.get('change', 0):,.0f}",
+                font_size="12sp", color=SUCCESS,
+            ))
+
+        popup = Popup(
+            title="Receipt", content=content,
+            size_hint=(0.85, 0.65), auto_dismiss=True,
+            background_color=CARD, title_color=WHITE,
+            separator_color=DIVIDER,
+        )
+        popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 4)
 
     def _confirm_credit(self, popup, txn, dk):
         cust = popup.children[0].children[1].text.strip()
@@ -681,6 +911,7 @@ class POSScreen(Screen):
         self._refresh_cart_bar()
         self._collapse_cart()
         self._refresh_items()
+        self._update_today_sales()
         session.touch()
 
     def undo_sale(self):
@@ -732,18 +963,4 @@ class POSScreen(Screen):
         undo_last_sale(dk)
         self._refresh_items()
         self._refresh_cart_bar()
-
-    def _goto_report(self, *args):
-        self._touch_session()
-        self.manager.current = "report"
-
-    def _goto_debts(self, *args):
-        self._touch_session()
-        self.manager.current = "debts"
-
-    def _goto_admin(self, *args):
-        self._touch_session()
-        from backend.database import session
-        user = session.get_user()
-        if user and user["role"] == "admin":
-            self.manager.current = "admin"
+        self._update_today_sales()

@@ -6,29 +6,38 @@ import base64
 import tempfile
 import time
 import glob as glob_mod
-import platform
+import threading
 from datetime import datetime
 
-# --- Data Directory ---
-def get_data_dir():
+# --- Data Directory (deferred init) ---
+DATA_DIR = None
+_json_path = None
+
+def init_data_dir():
+    global DATA_DIR, _json_path, _KEY_FILE
+    if DATA_DIR is not None:
+        return DATA_DIR
     try:
         from android.storage import app_storage_path
         base = app_storage_path()
     except Exception:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    d = os.path.join(base, "data")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-DATA_DIR = get_data_dir()
+    DATA_DIR = os.path.join(base, "data")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    _KEY_FILE = os.path.join(DATA_DIR, ".secret_key")
+    return DATA_DIR
 
 def json_path(name):
+    if DATA_DIR is None:
+        init_data_dir()
     return os.path.join(DATA_DIR, f"{name}.json")
 
 # --- Encryption Key ---
-_KEY_FILE = os.path.join(get_data_dir(), ".secret_key")
+_KEY_FILE = None
 
 def _get_encryption_key():
+    if _KEY_FILE is None:
+        init_data_dir()
     if os.path.exists(_KEY_FILE):
         with open(_KEY_FILE, "rb") as f:
             return f.read()
@@ -54,7 +63,6 @@ def _decrypt_str(b64_text):
     return decrypted.decode("utf-8")
 
 # --- File Locking ---
-import threading
 _file_locks = {}
 _global_lock = threading.Lock()
 
@@ -81,6 +89,8 @@ def load_json(name, default=None):
                 except Exception:
                     pass
             return json.loads(content)
+        return default if default is not None else {}
+    except Exception:
         return default if default is not None else {}
     finally:
         lock.release()
@@ -146,7 +156,7 @@ def migrate_pw(pw, stored, username):
 
 # --- Session Manager ---
 class SessionManager:
-    TIMEOUT_SECONDS = 600  # 10 minutes
+    TIMEOUT_SECONDS = 600
 
     def __init__(self):
         self._last_activity = time.time()
@@ -174,14 +184,17 @@ class SessionManager:
 session = SessionManager()
 
 def seed_default_staff():
-    staff = load_json("staff", None)
-    if staff is None or not staff.get("accounts"):
-        save_json("staff", {
-            "accounts": {
-                "admin": {
-                    "password_hash": hash_pw("changeme"),
-                    "role": "admin",
-                    "display_name": "Admin",
+    try:
+        staff = load_json("staff", None)
+        if staff is None or not staff.get("accounts"):
+            save_json("staff", {
+                "accounts": {
+                    "admin": {
+                        "password_hash": hash_pw("changeme"),
+                        "role": "admin",
+                        "display_name": "Admin",
+                    }
                 }
-            }
-        })
+            })
+    except Exception:
+        pass
