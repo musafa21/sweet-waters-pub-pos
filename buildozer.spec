@@ -6,7 +6,7 @@ package.domain = com.sweetwaterspub
 source.dir = .
 source.include_exts = py,png,jpg,kv,json,ttf,txt
 
-version = 3.1.0
+version = 3.2.0
 
 requirements = python3,kivy
 
@@ -22,7 +22,7 @@ android.accept_sdk_license = True
 
 p4a.bootstrap = sdl2
 
-android.archs = arm64-v8a
+android.archs = arm64-v8a, armeabi-v7a
 
 log_level = 0
 

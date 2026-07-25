@@ -3,18 +3,21 @@ import sys
 import time
 import traceback
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+_crash_log_path = None
+
 
 def _write_crash_log(exc):
+    import datetime as dt
     try:
-        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash.log")
+        log_path = _crash_log_path or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "crash.log")
         with open(log_path, "a") as f:
             f.write(f"\n{'='*60}\n")
-            import datetime
-            f.write(f"CRASH: {datetime.datetime.now()}\n")
+            f.write(f"CRASH: {dt.datetime.now()}\n")
             f.write(f"Version: {__version__}\n")
             traceback.print_exc(file=f)
         print(f"[CRASH] {exc} — see crash.log")
@@ -43,8 +46,10 @@ class SweetWatersPubApp(App):
         self._warned_timeout = False
 
     def build(self):
-        from backend.database import init_data_dir, seed_default_staff
+        from backend.database import init_data_dir, seed_default_staff, DATA_DIR
         init_data_dir()
+        global _crash_log_path
+        _crash_log_path = os.path.join(DATA_DIR, "crash.log")
         seed_default_staff()
 
         if platform != "android":
