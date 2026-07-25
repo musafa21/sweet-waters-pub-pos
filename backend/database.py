@@ -122,14 +122,27 @@ def hash_pw(pw):
     return base64.b64encode(salt).decode() + ":" + base64.b64encode(h).decode()
 
 def verify_pw(pw, stored):
-    try:
-        salt_b64, hash_b64 = stored.split(":", 1)
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(hash_b64)
-        actual = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100000)
-        return hmac.compare_digest(actual, expected)
-    except Exception:
+    if not stored:
         return False
+    if ":" in stored:
+        try:
+            salt_b64, hash_b64 = stored.split(":", 1)
+            salt = base64.b64decode(salt_b64)
+            expected = base64.b64decode(hash_b64)
+            actual = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100000)
+            return hmac.compare_digest(actual, expected)
+        except Exception:
+            return False
+    legacy = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy, stored)
+
+def migrate_pw(pw, stored, username):
+    if ":" not in stored:
+        staff = load_json("staff", {"accounts": {}})
+        acc = staff.get("accounts", {}).get(username)
+        if acc:
+            acc["password_hash"] = hash_pw(pw)
+            save_json("staff", staff)
 
 # --- Session Manager ---
 class SessionManager:

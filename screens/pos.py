@@ -1,5 +1,3 @@
-import re
-
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -7,11 +5,27 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
+from kivy.uix.widget import Widget
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.recycleboxlayout import RecycleBoxLayout
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Line, RoundedRectangle
+
+BG_DARK = (0.06, 0.06, 0.12, 1)
+BG_CARD = (0.10, 0.10, 0.18, 1)
+BG_INPUT = (0.14, 0.14, 0.24, 1)
+BG_ITEM = (0.12, 0.12, 0.20, 1)
+BG_ITEM_PRESS = (0.16, 0.14, 0.28, 1)
+ACCENT = (0.36, 0.24, 0.73, 1)
+ACCENT_BRIGHT = (0.48, 0.32, 0.92, 1)
+SUCCESS = (0.2, 0.78, 0.55, 1)
+DANGER = (0.91, 0.27, 0.27, 1)
+WARNING = (0.95, 0.65, 0.06, 1)
+TEXT_PRIMARY = (1, 1, 1, 1)
+TEXT_SECONDARY = (0.65, 0.65, 0.75, 1)
+TEXT_MUTED = (0.45, 0.45, 0.55, 1)
+BORDER_COLOR = (0.22, 0.22, 0.32, 1)
 
 CATEGORY_ICONS = {
     "Beers & Lagers": "\U0001f37a",
@@ -31,25 +45,25 @@ class ItemView(RecycleDataViewBehavior, BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
-        self.padding = [4, 6, 4, 6]
+        self.padding = [6, 8, 6, 8]
         self.spacing = 2
         self._icon_label = Label(
-            font_size="24sp", size_hint_y=None, height=30, color=(1, 1, 1, 1),
+            font_size="26sp", size_hint_y=None, height=32, color=TEXT_PRIMARY,
         )
         self._name_label = Label(
             font_size="11sp", size_hint_y=None, height=16,
-            color=(1, 1, 1, 1), text_size=(None, None),
+            color=TEXT_PRIMARY, text_size=(None, None),
             halign="center", shorten=True, shorten_from="right",
         )
         self._price_label = Label(
             font_size="12sp", size_hint_y=None, height=16,
-            color=(0.91, 0.3, 0.24, 1),
+            color=ACCENT_BRIGHT,
         )
         self.add_widget(self._icon_label)
         self.add_widget(self._name_label)
         self.add_widget(self._price_label)
         with self.canvas.before:
-            Color(0.08, 0.13, 0.24, 1)
+            Color(*BG_ITEM)
             self._bg = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._update_bg, size=self._update_bg)
 
@@ -72,20 +86,22 @@ class CartItemView(RecycleDataViewBehavior, BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "horizontal"
-        self.padding = [8, 4, 8, 4]
+        self.padding = [10, 6, 10, 6]
         self.spacing = 8
         self._info = Label(
-            text="", font_size="13sp", halign="left", valign="center",
-            size_hint_x=0.5, color=(1, 1, 1, 1),
+            text="", font_size="12sp", halign="left", valign="center",
+            size_hint_x=0.5, color=TEXT_PRIMARY,
         )
         self._info.bind(size=self._info.setter("text_size"))
         self._qty_label = Label(
-            text="", font_size="14sp", size_hint_x=0.15, color=(1, 1, 1, 1),
+            text="", font_size="14sp", size_hint_x=0.12, color=TEXT_PRIMARY,
         )
-        self._minus_btn = Button(text="-", size_hint_x=0.12, font_size="16sp",
-                                 background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1))
-        self._plus_btn = Button(text="+", size_hint_x=0.12, font_size="16sp",
-                                background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1))
+        self._minus_btn = Button(text="\u2212", size_hint_x=0.14, font_size="16sp",
+                                 background_color=BG_INPUT, color=DANGER,
+                                 background_normal="")
+        self._plus_btn = Button(text="+", size_hint_x=0.14, font_size="16sp",
+                                background_color=BG_INPUT, color=SUCCESS,
+                                background_normal="")
         self.add_widget(self._info)
         self.add_widget(self._minus_btn)
         self.add_widget(self._qty_label)
@@ -136,61 +152,71 @@ class POSScreen(Screen):
         self.clear_widgets()
         main = BoxLayout(orientation="vertical", size_hint=(1, 1))
 
+        with main.canvas.before:
+            Color(*BG_DARK)
+            self._main_bg = Rectangle(pos=main.pos, size=main.size)
+        main.bind(pos=self._update_main_bg, size=self._update_main_bg)
+
         top_bar = BoxLayout(
-            size_hint_y=None, height=48,
-            padding=[10, 0, 10, 0], spacing=8,
+            size_hint_y=None, height=52,
+            padding=[14, 0, 14, 0], spacing=10,
         )
         with top_bar.canvas.before:
-            Color(0.1, 0.13, 0.24, 1)
+            Color(*BG_CARD)
             self._top_bg = Rectangle(pos=top_bar.pos, size=top_bar.size)
+            Color(*BORDER_COLOR)
+            self._top_border = Line(points=[0, 0, 0, 0], width=0.5)
         top_bar.bind(pos=self._update_top_bg, size=self._update_top_bg)
 
         top_bar.add_widget(Label(
             text="SWEET WATERS PUB",
-            font_size="16sp", size_hint_x=0.35,
-            color=(1, 1, 1, 1),
+            font_size="15sp", size_hint_x=0.30,
+            color=TEXT_PRIMARY, bold=True,
         ))
         self.user_label = Label(
-            text="", font_size="11sp", size_hint_x=0.25,
-            color=(0.95, 0.77, 0.06, 1), halign="center",
+            text="", font_size="10sp", size_hint_x=0.22,
+            color=WARNING, halign="center",
         )
         top_bar.add_widget(self.user_label)
 
-        btn_box = BoxLayout(spacing=4, size_hint_x=0.4)
+        btn_box = BoxLayout(spacing=6, size_hint_x=0.48)
         for text, action, color in [
-            ("Report", self.show_report, (0.16, 0.5, 0.73, 1)),
-            ("Debts", self.show_debts, (0.91, 0.3, 0.24, 1)),
-            ("Admin", self.show_admin, (0.59, 0.65, 0.65, 1)),
+            ("\u2139 Report", self.show_report, (0.14, 0.38, 0.62, 1)),
+            ("\u2696 Debts", self.show_debts, (0.72, 0.22, 0.22, 1)),
+            ("\u2699 Admin", self.show_admin, (0.35, 0.38, 0.42, 1)),
         ]:
             btn = Button(
                 text=text, font_size="11sp",
-                background_color=color, color=(1, 1, 1, 1),
-                size_hint_x=0.33,
+                background_color=color, color=TEXT_PRIMARY,
+                size_hint_x=0.33, background_normal="",
             )
             btn.bind(on_release=action)
             btn_box.add_widget(btn)
         top_bar.add_widget(btn_box)
         main.add_widget(top_bar)
 
-        content = BoxLayout(spacing=4, padding=4)
+        content = BoxLayout(spacing=6, padding=6)
 
-        left = BoxLayout(orientation="vertical", size_hint_x=0.6)
+        left = BoxLayout(orientation="vertical", size_hint_x=0.58)
 
         self.search_field = TextInput(
-            hint_text="Search items...",
-            size_hint_y=None, height=40,
+            hint_text="  \U0001f50d  Search items...",
+            size_hint_y=None, height=42,
             multiline=False, font_size="14sp",
+            background_color=BG_INPUT, background_normal="",
+            foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
+            hint_text_color=TEXT_MUTED, padding=[10, 10, 10, 10],
         )
         self.search_field.bind(text=self.on_search)
         left.add_widget(self.search_field)
 
         self.cat_scroll = ScrollView(
-            size_hint_y=None, height=36,
+            size_hint_y=None, height=38,
             do_scroll_x=True, do_scroll_y=False,
         )
         self.cat_box = BoxLayout(
-            size_hint_y=None, height=34, spacing=4,
-            size_hint_x=None,
+            size_hint_y=None, height=36, spacing=6,
+            size_hint_x=None, padding=[0, 2],
         )
         self.cat_box.bind(minimum_width=self.cat_box.setter("width"))
         self.cat_scroll.add_widget(self.cat_box)
@@ -203,33 +229,34 @@ class POSScreen(Screen):
         self.items_rv.parent_app = self
         self.items_rv.layout_manager = RecycleBoxLayout(
             default_size_hint=(None, None),
-            default_size=(100, 80),
+            default_size=(105, 85),
             orientation="vertical",
             cols=3,
-            spacing=6,
-            padding=6,
+            spacing=8,
+            padding=8,
         )
         self.items_rv.layout_manager.bind(minimum_height=self.items_rv.layout_manager.setter("height"))
         left.add_widget(self.items_rv)
 
         content.add_widget(left)
 
-        right = BoxLayout(orientation="vertical", size_hint_x=0.4)
+        right = BoxLayout(orientation="vertical", size_hint_x=0.42)
         with right.canvas.before:
-            Color(0.1, 0.13, 0.24, 1)
+            Color(*BG_CARD)
             self._right_bg = Rectangle(pos=right.pos, size=right.size)
         right.bind(pos=self._update_right_bg, size=self._update_right_bg)
 
-        cart_header = BoxLayout(size_hint_y=None, height=36, padding=[8, 0])
+        cart_header = BoxLayout(size_hint_y=None, height=40, padding=[12, 0])
         cart_header.add_widget(Label(
-            text="CART", font_size="14sp", color=(1, 1, 1, 1),
+            text="CART", font_size="13sp", color=TEXT_PRIMARY, bold=True,
         ))
         self.cart_count_label = Label(
-            text="0", font_size="11sp", color=(0.91, 0.3, 0.24, 1),
+            text="0", font_size="11sp", color=ACCENT_BRIGHT,
         )
         cart_header.add_widget(self.cart_count_label)
         clear_btn = Button(text="Clear", size_hint_x=0.3, font_size="10sp",
-                           background_color=(0.91, 0.3, 0.24, 1), color=(1, 1, 1, 1))
+                           background_color=DANGER, color=TEXT_PRIMARY,
+                           background_normal="")
         clear_btn.bind(on_release=lambda x: self.clear_cart())
         cart_header.add_widget(clear_btn)
         right.add_widget(cart_header)
@@ -241,33 +268,35 @@ class POSScreen(Screen):
         self.cart_rv.parent_app = self
         self.cart_rv.layout_manager = RecycleBoxLayout(
             default_size_hint=(1, None),
-            default_size=(None, 44),
+            default_size=(None, 48),
             orientation="vertical",
-            spacing=2,
-            padding=4,
+            spacing=4,
+            padding=6,
         )
         self.cart_rv.layout_manager.bind(minimum_height=self.cart_rv.layout_manager.setter("height"))
         right.add_widget(self.cart_rv)
 
         self.total_label = Label(
             text="TOTAL: KES 0",
-            font_size="18sp", size_hint_y=None, height=44,
-            color=(1, 1, 1, 1),
+            font_size="18sp", size_hint_y=None, height=48,
+            color=TEXT_PRIMARY, bold=True,
         )
         right.add_widget(self.total_label)
 
         checkout_btn = Button(
-            text="CHECKOUT", size_hint_y=None, height=48,
-            background_color=(0.15, 0.68, 0.38, 1), color=(1, 1, 1, 1),
-            font_size="16sp", bold=True,
+            text="C H E C K O U T",
+            size_hint_y=None, height=50,
+            background_color=SUCCESS, color=TEXT_PRIMARY,
+            font_size="15sp", bold=True, background_normal="",
         )
         checkout_btn.bind(on_release=self.checkout)
         right.add_widget(checkout_btn)
 
         undo_btn = Button(
-            text="Undo Last Sale", size_hint_y=None, height=32,
-            background_color=(0.3, 0.3, 0.3, 1), color=(1, 1, 1, 1),
-            font_size="11sp",
+            text="Undo Last Sale",
+            size_hint_y=None, height=36,
+            background_color=BG_INPUT, color=TEXT_SECONDARY,
+            font_size="11sp", background_normal="",
         )
         undo_btn.bind(on_release=lambda x: self.undo_sale())
         right.add_widget(undo_btn)
@@ -277,6 +306,10 @@ class POSScreen(Screen):
         self.add_widget(main)
 
         Clock.schedule_once(lambda dt: self.init_data(), 0.1)
+
+    def _update_main_bg(self, *args):
+        self._main_bg.pos = self.children[0].pos
+        self._main_bg.size = self.children[0].size
 
     def _update_top_bg(self, *args):
         self._top_bg.pos = self.children[0].children[2].pos
@@ -303,7 +336,8 @@ class POSScreen(Screen):
         self.category_buttons = []
         all_btn = Button(
             text="All", font_size="11sp", size_hint_x=None, width=60,
-            background_color=(0.1, 0.13, 0.24, 1), color=(1, 1, 1, 1),
+            background_color=ACCENT, color=TEXT_PRIMARY,
+            background_normal="",
         )
         all_btn.bind(on_release=lambda x: self.select_category("All"))
         self.cat_box.add_widget(all_btn)
@@ -313,8 +347,9 @@ class POSScreen(Screen):
             icon = CATEGORY_ICONS.get(cat_name, "\U0001f37d\ufe0f")
             btn = Button(
                 text=f"{icon} {cat_name}", font_size="10sp",
-                size_hint_x=None, width=120,
-                background_color=(0.8, 0.8, 0.8, 1), color=(0.1, 0.13, 0.24, 1),
+                size_hint_x=None, width=130,
+                background_color=BG_INPUT, color=TEXT_SECONDARY,
+                background_normal="",
             )
             btn.bind(on_release=lambda x, c=cat_name: self.select_category(c))
             self.cat_box.add_widget(btn)
@@ -327,11 +362,11 @@ class POSScreen(Screen):
     def highlight_category(self):
         for cat_name, btn in self.category_buttons:
             if cat_name == self.current_category:
-                btn.background_color = (0.1, 0.13, 0.24, 1)
-                btn.color = (1, 1, 1, 1)
+                btn.background_color = ACCENT
+                btn.color = TEXT_PRIMARY
             else:
-                btn.background_color = (0.8, 0.8, 0.8, 1)
-                btn.color = (0.1, 0.13, 0.24, 1)
+                btn.background_color = BG_INPUT
+                btn.color = TEXT_SECONDARY
 
     def select_category(self, cat_name):
         self.current_category = cat_name
@@ -430,21 +465,27 @@ class POSScreen(Screen):
         self.show_payment_dialog(total)
 
     def show_payment_dialog(self, total):
-        content = BoxLayout(orientation="vertical", spacing=10, padding=15)
+        content = BoxLayout(orientation="vertical", spacing=12, padding=20)
 
         content.add_widget(Label(
-            text=f"TOTAL DUE: KES {total:,.0f}",
-            font_size="20sp", size_hint_y=None, height=40,
+            text=f"KES {total:,.0f}",
+            font_size="28sp", size_hint_y=None, height=48,
+            color=TEXT_PRIMARY, bold=True,
+        ))
+        content.add_widget(Label(
+            text="Total Due",
+            font_size="13sp", size_hint_y=None, height=20,
+            color=TEXT_SECONDARY,
         ))
 
-        method_box = BoxLayout(spacing=4, size_hint_y=None, height=36)
+        method_box = BoxLayout(spacing=6, size_hint_y=None, height=42)
         self._pay_method = "cash"
         self._method_btns = {}
         for m, lbl in [("cash", "Cash"), ("mpesa", "M-Pesa"), ("credit", "Credit")]:
             btn = Button(
                 text=lbl, font_size="12sp",
-                background_color=(0.15, 0.68, 0.38, 1) if m == "cash" else (0.5, 0.5, 0.5, 1),
-                color=(1, 1, 1, 1),
+                background_color=SUCCESS if m == "cash" else BG_INPUT,
+                color=TEXT_PRIMARY, background_normal="",
             )
             btn.method = m
             btn.bind(on_release=lambda x: self._select_method(x.method))
@@ -454,28 +495,39 @@ class POSScreen(Screen):
 
         self._pay_amount = TextInput(
             hint_text="Amount", input_filter="float",
-            size_hint_y=None, height=40, font_size="18sp",
+            size_hint_y=None, height=44, font_size="18sp",
             multiline=False, text=str(int(total)),
+            background_color=BG_INPUT, background_normal="",
+            foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
+            hint_text_color=TEXT_MUTED, padding=[12, 10],
         )
         content.add_widget(self._pay_amount)
 
         self._pay_customer = TextInput(
             hint_text="Customer Name (for credit)",
-            size_hint_y=None, height=40, multiline=False,
+            size_hint_y=None, height=44, multiline=False,
+            background_color=BG_INPUT, background_normal="",
+            foreground_color=TEXT_PRIMARY, cursor_color=ACCENT_BRIGHT,
+            hint_text_color=TEXT_MUTED, padding=[12, 10],
         )
         content.add_widget(self._pay_customer)
 
-        btn_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
-        cancel_btn = Button(text="Cancel", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1))
-        confirm_btn = Button(text="CONFIRM", background_color=(0.15, 0.68, 0.38, 1), color=(1, 1, 1, 1),
-                             font_size="14sp", bold=True)
+        btn_box = BoxLayout(spacing=10, size_hint_y=None, height=48)
+        cancel_btn = Button(text="Cancel", background_color=BG_INPUT,
+                            color=TEXT_SECONDARY, background_normal="")
+        confirm_btn = Button(text="CONFIRM", background_color=SUCCESS,
+                             color=TEXT_PRIMARY, font_size="14sp", bold=True,
+                             background_normal="")
         btn_box.add_widget(cancel_btn)
         btn_box.add_widget(confirm_btn)
         content.add_widget(btn_box)
 
         popup = Popup(
-            title="Payment", content=content,
-            size_hint=(0.95, 0.7), auto_dismiss=False,
+            title="", content=content,
+            size_hint=(0.92, 0.7), auto_dismiss=False,
+            background_color=BG_CARD,
+            separator_color=BORDER_COLOR,
+            title_color=TEXT_PRIMARY,
         )
         cancel_btn.bind(on_release=popup.dismiss)
         confirm_btn.bind(on_release=lambda x: self._confirm_payment(popup, total))
@@ -484,10 +536,7 @@ class POSScreen(Screen):
     def _select_method(self, method):
         self._pay_method = method
         for m, btn in self._method_btns.items():
-            if m == method:
-                btn.background_color = (0.15, 0.68, 0.38, 1)
-            else:
-                btn.background_color = (0.5, 0.5, 0.5, 1)
+            btn.background_color = SUCCESS if m == method else BG_INPUT
 
     def _confirm_payment(self, popup, total):
         try:
@@ -547,20 +596,24 @@ class POSScreen(Screen):
         last = txns[-1]
 
         if last.get("cashier") != user["display_name"] and user["role"] != "admin":
-            content = BoxLayout(orientation="vertical", spacing=10, padding=15)
+            content = BoxLayout(orientation="vertical", spacing=12, padding=20)
             content.add_widget(Label(
                 text="Only admin can undo\nanother cashier's sale.",
-                font_size="14sp", halign="center",
+                font_size="14sp", halign="center", color=TEXT_PRIMARY,
             ))
-            popup = Popup(title="Access Denied", content=content, size_hint=(0.8, 0.4), auto_dismiss=False)
-            ok_btn = Button(text="OK", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1),
-                            size_hint_y=None, height=40)
+            popup = Popup(title="Access Denied", content=content,
+                          size_hint=(0.8, 0.35), auto_dismiss=False,
+                          background_color=BG_CARD, title_color=DANGER,
+                          separator_color=BORDER_COLOR)
+            ok_btn = Button(text="OK", background_color=BG_INPUT,
+                            color=TEXT_PRIMARY, size_hint_y=None, height=44,
+                            background_normal="")
             ok_btn.bind(on_release=popup.dismiss)
             content.add_widget(ok_btn)
             popup.open()
             return
 
-        content = BoxLayout(orientation="vertical", spacing=10, padding=15)
+        content = BoxLayout(orientation="vertical", spacing=12, padding=20)
         items_str = ", ".join(f"{n}x{q}" for n, q in last.get("items", {}).items())
         content.add_widget(Label(
             text=f"Undo sale?\nTime: {last.get('time', '')}\n"
@@ -568,16 +621,20 @@ class POSScreen(Screen):
                  f"Items: {items_str}\n"
                  f"Total: KES {last.get('total', 0):,.0f}",
             font_size="14sp", halign="center",
-            text_size=(300, None),
+            text_size=(300, None), color=TEXT_PRIMARY,
         ))
-        btn_box = BoxLayout(spacing=8, size_hint_y=None, height=44)
-        cancel_btn = Button(text="Cancel", background_color=(0.5, 0.5, 0.5, 1), color=(1, 1, 1, 1))
-        undo_btn = Button(text="Undo", background_color=(0.91, 0.3, 0.24, 1), color=(1, 1, 1, 1))
+        btn_box = BoxLayout(spacing=10, size_hint_y=None, height=48)
+        cancel_btn = Button(text="Cancel", background_color=BG_INPUT,
+                            color=TEXT_SECONDARY, background_normal="")
+        undo_btn = Button(text="Undo", background_color=DANGER,
+                          color=TEXT_PRIMARY, background_normal="")
         btn_box.add_widget(cancel_btn)
         btn_box.add_widget(undo_btn)
         content.add_widget(btn_box)
 
-        popup = Popup(title="Undo Sale?", content=content, size_hint=(0.85, 0.5), auto_dismiss=False)
+        popup = Popup(title="Confirm", content=content, size_hint=(0.85, 0.55),
+                      auto_dismiss=False, background_color=BG_CARD,
+                      title_color=TEXT_PRIMARY, separator_color=BORDER_COLOR)
         cancel_btn.bind(on_release=popup.dismiss)
         undo_btn.bind(on_release=lambda x: (popup.dismiss(), self._do_undo(dk)))
         popup.open()
