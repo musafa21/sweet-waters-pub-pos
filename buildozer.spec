@@ -18,20 +18,15 @@ android.permissions = INTERNET
 android.api = 33
 android.minapi = 24
 android.ndk = 25b
-android.sdk = 33
 android.accept_sdk_license = True
 
 p4a.bootstrap = sdl2
 
-android.arch = arm64-v8a
-
-android.add_jars = libs/*.jar
+android.archs = arm64-v8a
 
 log_level = 0
 
 presplash_color = #16213e
-
-android.gradle_dependencies = 
 
 [buildozer]
 warn_on_root = 0

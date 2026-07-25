@@ -164,6 +164,8 @@ class DebtScreen(Screen):
 
     def settle_debt(self, debt):
         from backend.debts import calc_debt_outstanding
+        from backend.database import haptic_click
+        haptic_click()
         balance = calc_debt_outstanding(debt)
 
         content = BoxLayout(orientation="vertical", spacing=12, padding=20)

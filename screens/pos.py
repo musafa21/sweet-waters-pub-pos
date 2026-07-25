@@ -611,6 +611,8 @@ class POSScreen(Screen):
 
     def _on_item_touch(self, cell, touch, name):
         if cell.collide_point(*touch.pos):
+            from backend.database import haptic_click
+            haptic_click()
             self._add_to_cart(name)
             anim = Animation(background_color=(0.3, 0.7, 0.5, 1), duration=0.08) + \
                    Animation(background_color=(0.14, 0.14, 0.24, 1), duration=0.15)
@@ -756,6 +758,8 @@ class POSScreen(Screen):
         self.cart_items_box.height = len(self.cart) * 52
 
     def _select_method(self, method):
+        from backend.database import haptic_click
+        haptic_click()
         self._pay_method = method
         for m, btn in self._method_btns.items():
             btn.background_color = SUCCESS if m == method else SURFACE
@@ -769,6 +773,8 @@ class POSScreen(Screen):
             self._change_label.opacity = 0
 
     def _checkout(self, *args):
+        from backend.database import haptic_click
+        haptic_click()
         self._touch_session()
         if not self.cart:
             return

@@ -183,6 +183,16 @@ class SessionManager:
 
 session = SessionManager()
 
+# --- Haptic Feedback ---
+def haptic_click():
+    try:
+        from kivy.utils import platform as _plat
+        if _plat == "android":
+            from android.vibrate import vibrate
+            vibrate(0.05)
+    except Exception:
+        pass
+
 def seed_default_staff():
     try:
         staff = load_json("staff", None)

@@ -138,7 +138,8 @@ class ReportScreen(Screen):
         self.show_tab("Sales")
 
     def show_tab(self, tab_name):
-        from backend.database import session
+        from backend.database import session, haptic_click
+        haptic_click()
         session.touch()
         self._tab_content.clear_widgets()
         self._tab_content.height = 0
