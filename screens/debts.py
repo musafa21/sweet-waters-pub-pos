@@ -14,6 +14,7 @@ INPUT_BG = (0.16, 0.16, 0.26, 1)
 ACCENT = (0.42, 0.28, 0.82, 1)
 SUCCESS = (0.2, 0.78, 0.55, 1)
 DANGER = (0.95, 0.3, 0.3, 1)
+WARNING = (1.0, 0.65, 0.1, 1)
 WHITE = (1, 1, 1, 1)
 MUTED = (0.5, 0.5, 0.6, 1)
 HINT = (0.4, 0.4, 0.5, 1)
@@ -39,7 +40,11 @@ class DebtScreen(Screen):
 
     def build_ui(self):
         self.clear_widgets()
+        self._search_text = self.search_input.text if hasattr(self, 'search_input') else ""
         main = BoxLayout(orientation="vertical")
+
+    def _on_search_text(self, instance, text):
+        self.build_ui()
 
         with main.canvas.before:
             Color(*BG)
@@ -59,8 +64,22 @@ class DebtScreen(Screen):
         ))
         main.add_widget(header)
 
+        self.search_input = TextInput(
+            text=self._search_text if hasattr(self, '_search_text') else "",
+            hint_text="Search customer...", size_hint_y=None, height=40,
+            multiline=False, font_size="13sp", padding=[12, 8],
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT,
+        )
+        self.search_input.bind(text=self._on_search_text)
+        main.add_widget(self.search_input)
+
         from backend.debts import get_all_debts, calc_debt_outstanding
         all_debts = get_all_debts()
+        query = self.search_input.text.strip().lower()
+        if query:
+            all_debts = [d for d in all_debts if query in d.get("customer", "").lower()]
         outstanding = [d for d in all_debts if calc_debt_outstanding(d) > 0]
         total_out = sum(calc_debt_outstanding(d) for d in outstanding)
 
@@ -153,11 +172,15 @@ class DebtScreen(Screen):
         scroll.add_widget(debt_box)
         main.add_widget(scroll)
 
-        bottom = BoxLayout(size_hint_y=None, height=56, padding=8)
+        bottom = BoxLayout(size_hint_y=None, height=56, spacing=8, padding=8)
         back_btn = Button(text="Back to POS", font_size="14sp",
                           background_color=SURFACE, color=MUTED, background_normal="")
         back_btn.bind(on_release=lambda x: setattr(self.manager, 'current', 'pos'))
         bottom.add_widget(back_btn)
+        manual_btn = Button(text="+ Manual Debt", font_size="13sp",
+                            background_color=WARNING, color=WHITE, background_normal="")
+        manual_btn.bind(on_release=lambda x: self.add_manual_debt())
+        bottom.add_widget(manual_btn)
         main.add_widget(bottom)
 
         self.add_widget(main)
@@ -225,15 +248,88 @@ class DebtScreen(Screen):
             btn.background_color = SUCCESS if m == method else SURFACE
 
     def _confirm_settle(self, popup, debt):
+        from backend.debts import calc_debt_outstanding
         try:
             amt = float(self._settle_amount.text)
         except ValueError:
             return
         if amt <= 0:
             return
+        balance = calc_debt_outstanding(debt)
+        if amt > balance:
+            return
         from backend.database import session
         from backend.debts import settle_debt as do_settle
         do_settle(debt.get("id"), debt["_date_key"], amt, self._settle_method)
+        session.touch()
+        popup.dismiss()
+        self.build_ui()
+
+    def add_manual_debt(self):
+        content = BoxLayout(orientation="vertical", spacing=10, padding=16)
+        content.add_widget(Label(
+            text="Add Manual Debt", font_size="16sp", color=WHITE, bold=True,
+            size_hint_y=None, height=30,
+        ))
+        cust_input = TextInput(
+            hint_text="Customer name", size_hint_y=None, height=44,
+            multiline=False, font_size="15sp",
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[12, 8],
+        )
+        content.add_widget(cust_input)
+        amt_input = TextInput(
+            hint_text="Amount (KES)", size_hint_y=None, height=44,
+            multiline=False, input_filter="float", font_size="15sp",
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[12, 8],
+        )
+        content.add_widget(amt_input)
+        desc_input = TextInput(
+            hint_text="Description (optional)", size_hint_y=None, height=44,
+            multiline=False, font_size="15sp",
+            background_color=INPUT_BG, background_normal="",
+            foreground_color=WHITE, cursor_color=ACCENT,
+            hint_text_color=HINT, padding=[12, 8],
+        )
+        content.add_widget(desc_input)
+        btn_box = BoxLayout(spacing=8, size_hint_y=None, height=48)
+        cancel_btn = Button(text="Cancel", background_color=SURFACE, color=MUTED, background_normal="")
+        save_btn = Button(text="SAVE", background_color=SUCCESS, color=WHITE, bold=True, background_normal="")
+        btn_box.add_widget(cancel_btn)
+        btn_box.add_widget(save_btn)
+        content.add_widget(btn_box)
+        popup = Popup(
+            title="Manual Debt", content=content,
+            size_hint=(0.85, 0.55), auto_dismiss=False,
+            background_color=CARD, title_color=WHITE,
+            separator_color=DIVIDER,
+        )
+        cancel_btn.bind(on_release=popup.dismiss)
+        save_btn.bind(on_release=lambda x: self._save_manual_debt(popup, cust_input, amt_input, desc_input))
+        popup.open()
+
+    def _save_manual_debt(self, popup, cust_input, amt_input, desc_input):
+        customer = cust_input.text.strip()
+        if not customer:
+            return
+        try:
+            amt = float(amt_input.text)
+        except ValueError:
+            return
+        if amt <= 0:
+            return
+        from backend.database import today_key, session
+        from backend.debts import create_debt
+        create_debt({
+            "customer": customer,
+            "total": amt,
+            "date": today_key(),
+            "items": {},
+            "description": desc_input.text.strip(),
+        })
         session.touch()
         popup.dismiss()
         self.build_ui()

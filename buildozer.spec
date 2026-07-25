@@ -8,7 +8,7 @@ source.include_exts = py,png,jpg,kv,json,ttf,txt
 
 version = 3.1.0
 
-requirements = python3,kivy,fpdf2
+requirements = python3,kivy
 
 orientation = portrait
 fullscreen = 1

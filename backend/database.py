@@ -183,13 +183,28 @@ class SessionManager:
 
 session = SessionManager()
 
+# --- PIN Encryption ---
+def encrypt_pin(pin):
+    return _encrypt_str(pin)
+
+def decrypt_pin(encrypted):
+    try:
+        return _decrypt_str(encrypted)
+    except Exception:
+        return None
+
 # --- Haptic Feedback ---
 def haptic_click():
     try:
         from kivy.utils import platform as _plat
         if _plat == "android":
-            from android.vibrate import vibrate
-            vibrate(0.05)
+            from jnius import autoclass
+            Context = autoclass('android.content.Context')
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            activity = PythonActivity.mActivity
+            vibrator = activity.getSystemService(Context.VIBRATOR_SERVICE)
+            if vibrator and vibrator.hasVibrator():
+                vibrator.vibrate(50)
     except Exception:
         pass
 

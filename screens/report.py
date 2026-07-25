@@ -63,17 +63,24 @@ class ReportScreen(Screen):
             text="\U0001f4ca  Daily Report",
             font_size="17sp", color=WHITE, bold=True, size_hint_x=0.40,
         ))
-        self.date_field = TextInput(
-            text=self.date_key, size_hint_x=0.38, size_hint_y=None,
-            height=36, multiline=False, font_size="13sp",
-            background_color=INPUT_BG, background_normal="",
-            foreground_color=WHITE, cursor_color=ACCENT,
-            hint_text_color=HINT, padding=[8, 8],
+        date_row = BoxLayout(orientation="horizontal", size_hint_x=0.38, spacing=4)
+        prev_btn = Button(text="<", font_size="15sp", size_hint_x=0.22,
+                          background_color=SURFACE, color=WHITE, background_normal="")
+        self.date_label = Label(
+            text=self.date_key, font_size="13sp", color=WHITE,
+            size_hint_x=0.56,
         )
-        header.add_widget(self.date_field)
-        go_btn = Button(text="Go", size_hint_x=0.18, font_size="13sp",
+        next_btn = Button(text=">", font_size="15sp", size_hint_x=0.22,
+                          background_color=SURFACE, color=WHITE, background_normal="")
+        prev_btn.bind(on_release=lambda x: self._shift_date(-1))
+        next_btn.bind(on_release=lambda x: self._shift_date(1))
+        date_row.add_widget(prev_btn)
+        date_row.add_widget(self.date_label)
+        date_row.add_widget(next_btn)
+        header.add_widget(date_row)
+        go_btn = Button(text="Today", size_hint_x=0.18, font_size="13sp",
                         background_color=ACCENT, color=WHITE, background_normal="")
-        go_btn.bind(on_release=self.go_to_date)
+        go_btn.bind(on_release=self.go_today)
         header.add_widget(go_btn)
         main.add_widget(header)
 
@@ -136,6 +143,21 @@ class ReportScreen(Screen):
 
         self.add_widget(main)
         self.show_tab("Sales")
+
+    def go_today(self, *args):
+        from backend.database import today_key
+        self.date_key = today_key()
+        self.build_ui()
+
+    def _shift_date(self, direction):
+        from datetime import datetime, timedelta
+        try:
+            dt = datetime.strptime(self.date_key, "%Y-%m-%d")
+        except ValueError:
+            return
+        dt += timedelta(days=direction)
+        self.date_key = dt.strftime("%Y-%m-%d")
+        self.build_ui()
 
     def show_tab(self, tab_name):
         from backend.database import session, haptic_click
@@ -216,7 +238,7 @@ class ReportScreen(Screen):
             remaining = calc_remaining_stock(self.date_key)
             items_list = sorted(get_stock_list().keys())
             for name in items_list:
-                rem = remaining.get(name, 0)
+                rem = max(0, remaining.get(name, 0))
                 if rem <= 0:
                     tag = "  OUT"
                     tag_color = DANGER
@@ -239,16 +261,6 @@ class ReportScreen(Screen):
                 self._tab_content.add_widget(row)
             self._tab_content.height = len(items_list) * 42
 
-    def go_to_date(self, *args):
-        dk = self.date_field.text.strip()
-        from datetime import datetime
-        try:
-            datetime.strptime(dk, "%Y-%m-%d")
-        except ValueError:
-            return
-        self.date_key = dk
-        self.build_ui()
-
     def undo_sale(self):
         from backend.database import today_key, session
         if not session.is_logged_in():
@@ -263,6 +275,32 @@ class ReportScreen(Screen):
         user = session.get_user()
         if last.get("cashier") != user["display_name"] and user["role"] != "admin":
             return
+        items_str = ", ".join(f"{n}x{q}" for n, q in last.get("items", {}).items())
+        content = BoxLayout(orientation="vertical", spacing=12, padding=16)
+        content.add_widget(Label(
+            text=f"Undo this sale?\n{last.get('time', '')}  |  KES {last.get('total', 0):,.0f}\n{items_str}",
+            font_size="14sp", color=WHITE, halign="center",
+        ))
+        btns = BoxLayout(spacing=8, size_hint_y=None, height=44)
+        cancel_btn = Button(text="Cancel", background_color=SURFACE, color=MUTED, background_normal="")
+        confirm_btn = Button(text="UNDO", background_color=DANGER, color=WHITE, bold=True, background_normal="")
+        btns.add_widget(cancel_btn)
+        btns.add_widget(confirm_btn)
+        content.add_widget(btns)
+        popup = Popup(
+            title="Confirm Undo", content=content,
+            size_hint=(0.85, 0.50), auto_dismiss=False,
+            background_color=CARD, title_color=WHITE,
+            separator_color=DIVIDER,
+        )
+        cancel_btn.bind(on_release=popup.dismiss)
+        confirm_btn.bind(on_release=lambda x: self._do_undo(popup, dk))
+        popup.open()
+
+    def _do_undo(self, popup, dk):
+        popup.dismiss()
+        from backend.sales import undo_last_sale
+        from backend.database import session
         undo_last_sale(dk)
         session.touch()
         self.date_key = dk

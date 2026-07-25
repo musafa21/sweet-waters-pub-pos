@@ -1,7 +1,7 @@
 import os
 import glob as glob_mod
 from .database import load_json, save_json, DATA_DIR, today_key
-from .sales import load_sales
+from .sales import load_sales, save_sales
 from datetime import datetime
 
 def calc_debt_outstanding(debt):
@@ -21,6 +21,24 @@ def get_all_debts():
             all_d.append(d)
     all_d.sort(key=lambda d: (d.get("date", ""), d.get("time", "")), reverse=True)
     return all_d
+
+def create_debt(data):
+    dk = data.get("date", today_key())
+    sales = load_sales(dk)
+    debt_id = f"debt_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    entry = {
+        "id": debt_id,
+        "customer": data.get("customer", ""),
+        "total": data.get("total", 0),
+        "date": dk,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "items": data.get("items", {}),
+        "settlements": [],
+        "description": data.get("description", ""),
+    }
+    sales.setdefault("debts", []).append(entry)
+    save_sales(dk, sales)
+    return debt_id
 
 def settle_debt(debt_id, date_key, amount, method):
     sales = load_sales(date_key)

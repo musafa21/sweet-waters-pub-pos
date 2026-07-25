@@ -7,6 +7,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.widget import Widget
+from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 
 MAX_ATTEMPTS = 5
@@ -16,7 +17,6 @@ BG = (0.07, 0.07, 0.14, 1)
 CARD = (0.12, 0.12, 0.20, 1)
 INPUT_BG = (0.16, 0.16, 0.26, 1)
 ACCENT = (0.42, 0.28, 0.82, 1)
-ACCENT_PRESS = (0.34, 0.22, 0.68, 1)
 WHITE = (1, 1, 1, 1)
 MUTED = (0.5, 0.5, 0.6, 1)
 HINT = (0.4, 0.4, 0.5, 1)
@@ -27,9 +27,8 @@ SURFACE = (0.14, 0.14, 0.24, 1)
 
 
 def _hint_shown_file():
-    from backend.database import DATA_DIR
+    from backend.database import DATA_DIR, init_data_dir
     if DATA_DIR is None:
-        from backend.database import init_data_dir
         init_data_dir()
     from backend.database import DATA_DIR
     return os.path.join(DATA_DIR, ".hint_seen")
@@ -54,6 +53,7 @@ class LoginScreen(Screen):
         self._attempts = 0
         self._locked_until = 0
         self._pin_mode = False
+        self._lockout_timer = None
 
     def set_app(self, app):
         self.app = app
@@ -70,6 +70,11 @@ class LoginScreen(Screen):
             self.login_hint.opacity = 0
             self.login_hint.size_hint_y = None
             self.login_hint.height = 0
+
+    def on_leave(self):
+        if self._lockout_timer:
+            self._lockout_timer.cancel()
+            self._lockout_timer = None
 
     def build_ui(self):
         self.clear_widgets()
@@ -96,35 +101,29 @@ class LoginScreen(Screen):
 
         root.add_widget(Widget(size_hint_y=0.03))
 
-        card_wrapper = BoxLayout(
-            size_hint=(0.82, None), height=380,
-            pos_hint={"center_x": 0.5},
-        )
-        card = BoxLayout(orientation="vertical", padding=[28, 20, 28, 16], spacing=10)
-        with card.canvas.before:
+        card_wrapper = BoxLayout(size_hint=(0.82, None), height=380, pos_hint={"center_x": 0.5})
+        self._card = BoxLayout(orientation="vertical", padding=[28, 20, 28, 16], spacing=10)
+        with self._card.canvas.before:
             Color(*CARD)
-            self._card_rect = RoundedRectangle(pos=card.pos, size=card.size, radius=[16])
-        card.bind(pos=self._update_card, size=self._update_card)
+            self._card_rect = RoundedRectangle(pos=self._card.pos, size=self._card.size, radius=[16])
+        self._card.bind(pos=self._update_card, size=self._update_card)
 
         self._mode_toggle = Button(
             text="Use PIN Login", font_size="11sp", size_hint_y=None, height=28,
             background_color=SURFACE, color=MUTED, background_normal="",
         )
         self._mode_toggle.bind(on_release=self._toggle_mode)
-        card.add_widget(self._mode_toggle)
+        self._card.add_widget(self._mode_toggle)
 
         self._pw_fields_box = BoxLayout(orientation="vertical", spacing=8)
         self.username_input = self._make_input("Username", False)
         self._pw_fields_box.add_widget(self.username_input)
         self.password_input = self._make_input("Password", True)
         self._pw_fields_box.add_widget(self.password_input)
-        card.add_widget(self._pw_fields_box)
+        self._card.add_widget(self._pw_fields_box)
 
-        self._pin_fields_box = BoxLayout(
-            orientation="vertical", spacing=10, size_hint_y=None, height=140,
-        )
-        pin_label = Label(text="Enter 4-digit PIN", font_size="13sp", color=MUTED,
-                          size_hint_y=None, height=24)
+        self._pin_fields_box = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None, height=140)
+        pin_label = Label(text="Enter 4-digit PIN", font_size="13sp", color=MUTED, size_hint_y=None, height=24)
         self._pin_fields_box.add_widget(pin_label)
 
         pin_row = BoxLayout(spacing=10, size_hint_y=None, height=56)
@@ -139,22 +138,19 @@ class LoginScreen(Screen):
                 hint_text_color=HINT, padding=[4, 8],
                 input_filter="int", max_length=1,
             )
-            inp.bind(text=lambda instance, value, idx=i: self._on_pin_digit(idx, value))
-            inp.bind(focus=lambda instance, idx=i: self._on_pin_focus(idx))
+            inp._idx = i
+            inp.bind(text=self._on_pin_digit)
+            inp.bind(focus=lambda instance, f, idx=i: None)
             self._pin_fields.append(inp)
             pin_row.add_widget(inp)
         self._pin_fields_box.add_widget(pin_row)
 
-        self._pin_error = Label(text="", font_size="11sp", color=ERR,
-                                size_hint_y=None, height=18)
+        self._pin_error = Label(text="", font_size="11sp", color=ERR, size_hint_y=None, height=18)
         self._pin_fields_box.add_widget(self._pin_error)
+        self._card.add_widget(self._pin_fields_box)
 
-        card.add_widget(self._pin_fields_box)
-
-        self.error_label = Label(
-            text="", color=ERR, font_size="12sp", size_hint_y=None, height=18,
-        )
-        card.add_widget(self.error_label)
+        self.error_label = Label(text="", color=ERR, font_size="12sp", size_hint_y=None, height=18)
+        self._card.add_widget(self.error_label)
 
         self.login_btn = Button(
             text="SIGN IN", size_hint=(1, None), height=48,
@@ -162,15 +158,15 @@ class LoginScreen(Screen):
             font_size="15sp", bold=True, background_normal="",
         )
         self.login_btn.bind(on_release=self.do_login)
-        card.add_widget(self.login_btn)
+        self._card.add_widget(self.login_btn)
 
         self.login_hint = Label(
-            text="Default: admin / changeme",
-            font_size="10sp", color=MUTED, size_hint_y=None, height=18,
+            text="Default: admin / changeme", font_size="10sp", color=MUTED,
+            size_hint_y=None, height=18,
         )
-        card.add_widget(self.login_hint)
+        self._card.add_widget(self.login_hint)
 
-        card_wrapper.add_widget(card)
+        card_wrapper.add_widget(self._card)
         root.add_widget(card_wrapper)
 
         root.add_widget(Widget(size_hint_y=0.22))
@@ -235,26 +231,25 @@ class LoginScreen(Screen):
         for f in self._pin_fields:
             f.text = val
 
-    def _on_pin_digit(self, idx, value):
-        if value and idx < 3:
-            self._pin_fields[idx + 1].focus = True
-        elif not value and idx > 0:
-            self._pin_fields[idx - 1].focus = True
-        pin = "".join(f.text for f in self._pin_fields)
-        if len(pin) == 4:
-            self.do_login()
-
-    def _on_pin_focus(self, idx):
-        pass
+    def _on_pin_digit(self, instance, value):
+        idx = instance._idx
+        if value:
+            if idx < 3:
+                self._pin_fields[idx + 1].focus = True
+            pin = "".join(f.text for f in self._pin_fields)
+            if len(pin) == 4 and pin == "".join(f.text for f in self._pin_fields):
+                self.do_login()
+        else:
+            if idx > 0:
+                Clock.schedule_once(lambda dt: self._pin_fields[idx - 1].focus.__setattr__('focus', True), 0.05)
 
     def _update_bg(self, *args):
         self._bg_rect.pos = self.children[0].pos
         self._bg_rect.size = self.children[0].size
 
     def _update_card(self, *args):
-        card = self.children[0].children[1]
-        self._card_rect.pos = card.pos
-        self._card_rect.size = card.size
+        self._card_rect.pos = self._card.pos
+        self._card_rect.size = self._card.size
 
     def _check_lockout(self):
         now = time.time()
@@ -264,11 +259,36 @@ class LoginScreen(Screen):
             self.username_input.disabled = True
             self.password_input.disabled = True
             self.login_btn.disabled = True
+            self._start_lockout_tick(remaining)
         else:
             self._locked_until = 0
             self.username_input.disabled = False
             self.password_input.disabled = False
             self.login_btn.disabled = False
+            if self._lockout_timer:
+                self._lockout_timer.cancel()
+                self._lockout_timer = None
+
+    def _start_lockout_tick(self, remaining):
+        if self._lockout_timer:
+            self._lockout_timer.cancel()
+        self._lockout_remaining = remaining
+
+        def _tick(dt):
+            self._lockout_remaining -= 1
+            if self._lockout_remaining <= 0:
+                self._locked_until = 0
+                self.error_label.text = ""
+                self.username_input.disabled = False
+                self.password_input.disabled = False
+                self.login_btn.disabled = False
+                if self._lockout_timer:
+                    self._lockout_timer.cancel()
+                    self._lockout_timer = None
+                return
+            self.error_label.text = f"Locked out. Try again in {self._lockout_remaining}s"
+
+        self._lockout_timer = Clock.schedule_interval(_tick, 1)
 
     def do_login(self, *args):
         from backend.database import haptic_click
@@ -283,12 +303,12 @@ class LoginScreen(Screen):
                 self._pin_error.text = "Enter 4 digits"
                 return
             self._pin_error.text = ""
-            username = None
-            password = pin
-            from backend.database import load_json
+            from backend.database import load_json, decrypt_pin
             staff = load_json("staff", {"accounts": {}}).get("accounts", {})
+            username = None
             for uname, acc in staff.items():
-                if acc.get("pin") == pin:
+                stored_pin = acc.get("pin", "")
+                if stored_pin and decrypt_pin(stored_pin) == pin:
                     username = uname
                     break
             if username is None:
@@ -298,6 +318,7 @@ class LoginScreen(Screen):
                     self._locked_until = time.time() + LOCKOUT_SECONDS
                     self._pin_error.text = "Too many attempts. Locked 5 min."
                     self.login_btn.disabled = True
+                    self._start_lockout_tick(LOCKOUT_SECONDS)
                 else:
                     self._pin_error.text = f"Wrong PIN ({remaining} left)"
                 self._set_pin_fields("")
@@ -328,6 +349,7 @@ class LoginScreen(Screen):
                 self.username_input.disabled = True
                 self.password_input.disabled = True
                 self.login_btn.disabled = True
+                self._start_lockout_tick(LOCKOUT_SECONDS)
             else:
                 self.error_label.text = f"Wrong username or password ({remaining} left)"
             self.password_input.text = ""

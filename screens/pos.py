@@ -9,6 +9,7 @@ from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.animation import Animation
+from kivy.core.window import Window as KivyWindow
 
 BG = (0.07, 0.07, 0.14, 1)
 CARD = (0.12, 0.12, 0.20, 1)
@@ -193,7 +194,12 @@ class POSScreen(Screen):
         )
         self.cart_bar.add_widget(self.cart_icon)
 
-        info = BoxLayout(orientation="vertical", size_hint_x=0.48)
+        self.cart_chevron = Label(
+            text=">", font_size="18sp", color=MUTED, size_hint_x=0.06,
+        )
+        self.cart_bar.add_widget(self.cart_chevron)
+
+        info = BoxLayout(orientation="vertical", size_hint_x=0.42)
         self.cart_count_label = Label(
             text="Cart empty", font_size="12sp", color=MUTED,
             size_hint_y=0.5, halign="left",
@@ -423,13 +429,17 @@ class POSScreen(Screen):
     def _expand_cart(self):
         self._cart_expanded = True
         self.cart_overlay.opacity = 1
+        anim = Animation(opacity=1, duration=0.15, t="out_quad")
+        anim += Animation(opacity=1, duration=0)
+        anim.start(self.cart_overlay)
         total = sum(q * p for _, q, p in self.cart)
         self._cash_received_input.text = str(int(total))
         self._refresh_cart_overlay()
 
     def _collapse_cart(self):
         self._cart_expanded = False
-        self.cart_overlay.opacity = 0
+        anim = Animation(opacity=0, duration=0.12, t="in_quad")
+        anim.start(self.cart_overlay)
 
     def _on_cash_changed(self, instance, text):
         total = sum(q * p for _, q, p in self.cart)
@@ -553,7 +563,7 @@ class POSScreen(Screen):
         self.items_grid.clear_widgets()
         self.items_grid.height = 0
 
-        cols = 3
+        cols = 2 if KivyWindow.width < 360 else 3
         row_box = None
         cell_w = 1.0 / cols
 
@@ -587,11 +597,13 @@ class POSScreen(Screen):
             cell.add_widget(Label(
                 text=icon, font_size="26sp", size_hint_y=0.38, color=WHITE,
             ))
-            cell.add_widget(Label(
+            nm_label = Label(
                 text=name, font_size="10sp", size_hint_y=0.32,
                 color=WHITE, halign="center", shorten=True,
-                shorten_from="right", text_size=(None, None),
-            ))
+                shorten_from="right",
+            )
+            nm_label.bind(size=lambda lbl, *_: setattr(lbl, 'text_size', (lbl.width, None)))
+            cell.add_widget(nm_label)
             cell.add_widget(Label(
                 text=f"KES {price:,.0f}", font_size="11sp", size_hint_y=0.30,
                 color=GOLD,
@@ -895,14 +907,20 @@ class POSScreen(Screen):
                 font_size="12sp", color=SUCCESS,
             ))
 
+        ok_btn = Button(
+            text="OK", font_size="14sp", bold=True,
+            size_hint_y=None, height=48,
+            background_color=ACCENT, color=WHITE, background_normal="",
+        )
+        content.add_widget(ok_btn)
         popup = Popup(
             title="Receipt", content=content,
-            size_hint=(0.85, 0.65), auto_dismiss=True,
+            size_hint=(0.85, 0.65), auto_dismiss=False,
             background_color=CARD, title_color=WHITE,
             separator_color=DIVIDER,
         )
+        ok_btn.bind(on_release=popup.dismiss)
         popup.open()
-        Clock.schedule_once(lambda dt: popup.dismiss(), 4)
 
     def _confirm_credit(self, popup, txn, dk):
         cust = popup.children[0].children[1].text.strip()
